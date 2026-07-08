@@ -9,7 +9,27 @@
 - **两个契约**：证据卡 schema（`money/evidence.py`）+ 分析框架（`money/prompts/analysis_framework.md`）。
 - **复盘飞轮**：每次预测 append-only 存档，到期用真实净值算命中率/IC/超额收益，Claude 分析前先看战绩自我校准。
 
-## 安装
+## 作为 Claude Code Skill 安装（推荐，可发布分享）
+
+本仓库本身是一个 **Claude Code plugin marketplace**（清单在 `.claude-plugin/marketplace.json`），
+里面的 `money-quant` 插件带 `fund-analyze` 技能。别人这样装：
+
+```
+/plugin marketplace add thefoxfairy/money      # 换成本仓库的 GitHub 地址
+/plugin install money-quant@foxfairy-money
+```
+
+本地开发/自测（在仓库根目录）：
+
+```
+/plugin marketplace add .
+/plugin install money-quant@foxfairy-money
+```
+
+首次使用前，安装引擎依赖：`bash skills/fund-analyze/scripts/setup.sh`。
+装好后，直接对话："帮我看看黄金能不能买"。
+
+## 手动安装引擎（不走 marketplace 时）
 ```bash
 uv sync
 ```

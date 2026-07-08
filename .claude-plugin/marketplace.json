@@ -1,0 +1,22 @@
+{
+  "name": "foxfairy-money",
+  "owner": {
+    "name": "LordFoxFairy",
+    "email": "yangcode920@gmail.com"
+  },
+  "metadata": {
+    "description": "场外基金与黄金的量化分析 skill：证据卡 + Claude 决策 + 复盘",
+    "version": "0.1.0"
+  },
+  "plugins": [
+    {
+      "name": "money-quant",
+      "description": "分析场外基金或黄金，给出可解释的买入/观望/回避信号、置信度与风险，并把每次判断存档以便复盘。",
+      "source": "./",
+      "strict": false,
+      "skills": [
+        "./skills/fund-analyze"
+      ]
+    }
+  ]
+}

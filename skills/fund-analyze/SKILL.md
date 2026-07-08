@@ -17,7 +17,7 @@ description: >-
 第一次使用前，安装/更新引擎依赖（幂等，重复跑无害）：
 
 ```
-bash .claude/skills/fund-analyze/scripts/setup.sh
+bash skills/fund-analyze/scripts/setup.sh
 ```
 
 若提示缺少 `uv`，按脚本给出的链接安装后重跑。
