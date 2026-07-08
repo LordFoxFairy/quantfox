@@ -3,7 +3,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent.parent
 SKILLS = ROOT / "skills"
-EXPECTED = ["fund-analyze", "fund-position", "fund-compare", "fund-review"]
+EXPECTED = ["fund-analyze", "fund-position", "fund-compare", "fund-portfolio", "fund-review"]
 
 
 def test_all_skills_valid_frontmatter():

@@ -18,6 +18,7 @@
         "./skills/fund-analyze",
         "./skills/fund-position",
         "./skills/fund-compare",
+        "./skills/fund-portfolio",
         "./skills/fund-review"
       ]
     }
