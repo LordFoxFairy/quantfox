@@ -1,8 +1,10 @@
+import datetime as _dt
 import json
+from pathlib import Path
 
 import typer
 
-from .config import ledger_path
+from .config import data_dir, ledger_path
 from .data.fund_profile import load_profile
 from .data.prices import load_prices
 from .data.resolve import resolve
@@ -77,6 +79,28 @@ def profile(query: str):
     """基金基本面：经理/持仓/评级（黄金不适用，调试）。"""
     asset = resolve(query)
     typer.echo(json.dumps(_profile_for(asset), ensure_ascii=False, indent=2))
+
+
+@app.command()
+def report(query: str,
+           analysis_file: str = typer.Option(None, help="CC 判断的 JSON（verdict/dimensions/commentary_html/risks_html）"),
+           out: str = typer.Option(None, help="输出 HTML 路径")):
+    """渲染自包含可视化 HTML 报告（ECharts K线+指标+回撤+持仓）。打印文件路径。"""
+    from .report import build_report
+
+    analysis = {}
+    if analysis_file:
+        analysis = json.loads(Path(analysis_file).read_text(encoding="utf-8"))
+    html = build_report(query, analysis)
+    asset = resolve(query)
+    if out:
+        path = Path(out)
+    else:
+        d = data_dir() / "reports"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"{asset.symbol}_{_dt.date.today().isoformat()}.html"
+    path.write_text(html, encoding="utf-8")
+    typer.echo(str(path))
 
 
 @app.command("log-signal")
