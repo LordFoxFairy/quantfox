@@ -73,16 +73,16 @@ def news(query: str):
 
 @app.command("log-signal")
 def log_signal(
-    symbol: str,
-    signal: str,
-    signal_numeric: int,
-    confidence: float,
-    price_ref: float,
-    ts: str,
-    type: str = "otc_fund",
-    horizons: str = "5,20,60",
-    rationale: str = "",
-    evidence_json: str = "{}",
+    symbol: str = typer.Option(..., help="标的代码，如 501018 或 Au99.99"),
+    signal: str = typer.Option(..., help="信号档位：强买/买/观望/减/回避"),
+    signal_numeric: int = typer.Option(..., help="信号数值：2/1/0/-1/-2"),
+    confidence: float = typer.Option(..., help="置信度 0-1"),
+    price_ref: float = typer.Option(..., help="证据卡最新价"),
+    ts: str = typer.Option(..., help="预测日期 YYYY-MM-DD"),
+    type: str = typer.Option("otc_fund", help="otc_fund 或 gold"),
+    horizons: str = typer.Option("5,20,60", help="评估周期（交易日），逗号分隔"),
+    rationale: str = typer.Option("", help="一句话理由"),
+    evidence_json: str = typer.Option("{}", help="证据卡 JSON 快照"),
 ):
     """把本次信号 + 当时证据存进预测账本。"""
     pid = _ledger().log_signal(
