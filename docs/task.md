@@ -7,9 +7,16 @@
   - 计划：`docs/superpowers/plans/2026-07-08-money-quant-assistant-p1.md`
   - 20 个单测全绿；黄金与基金 501018 真实端到端冒烟通过。
 
+- [x] **多-skill 架构 + 可视化报告**（2026-07-08）：
+  - 拆成 4 个各自闭环的 skill（挂 money-quant 插件）：`fund-analyze`（取数→四维评分卡→可视化报告→存档一条龙）、`fund-position`（仓位/定投，适配自 tradermonty position-sizer）、`fund-compare`（多标的对比）、`fund-review`（复盘，适配自 tradermonty signal-postmortem）。
+  - `money report`：自包含 **ECharts HTML 报告**（K线/净值+回撤+持仓饼+四维评分卡），浏览器打开；已用 Playwright 真实渲染验证。
+  - 分析框架 v4：四维评分卡 + Verdict/信心 + Kill criteria（适配自 xvary）。
+  - 评估并放弃 quantstats（英文通用、重依赖），主报告用 ECharts。
+
 ### 后续（未开始）
-- [ ] **P2**：每日 `loop` 定时（headless `--llm` 走 Claude API）、回测（vectorbt/backtrader）、更多结构化数据源。
-- [ ] **P3**：网页 K 线看板、正式对外发布与文档。
+- [ ] **报告离线化**：ECharts 目前走 CDN；打包时内联 echarts.min.js 使 HTML 完全离线可转发。
+- [ ] **P2**：每日 `loop` 定时（headless `--llm`）、回测、指数估值分位接口。
+- [ ] **P3**：正式对外发布。
 
 - [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。
 - [x] **专业化重构**（2026-07-08）：
