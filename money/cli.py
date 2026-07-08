@@ -3,11 +3,12 @@ import json
 import typer
 
 from .config import ledger_path
-from .data.news import load_news
+from .data.fund_profile import load_profile
 from .data.prices import load_prices
 from .data.resolve import resolve
 from .evidence import build_evidence
 from .indicators import compute_indicators
+from .metrics import compute_metrics
 from .prompts import framework_version
 from .storage import Ledger
 
@@ -18,8 +19,8 @@ def _prices_for(asset):
     return load_prices(asset)
 
 
-def _news_for(asset):
-    return load_news(asset)
+def _profile_for(asset):
+    return load_profile(asset)
 
 
 def _ledger():
@@ -42,11 +43,11 @@ def evidence(query: str, format: str = typer.Option("json", help="json|markdown"
         prices = _empty_prices()
         typer.echo(f"# 取价失败: {e}", err=True)
     try:
-        news = _news_for(asset)
+        profile = _profile_for(asset)
     except Exception:
-        news = []
+        profile = {"applicable": asset.type == "otc_fund"}
     tr = _ledger().track_record_for(asset.symbol)
-    card = build_evidence(asset, prices=prices, news=news, track_record=tr)
+    card = build_evidence(asset, prices=prices, profile=profile, track_record=tr)
     typer.echo(card.to_markdown() if format == "markdown" else card.to_json())
 
 
@@ -65,10 +66,17 @@ def indicators(query: str):
 
 
 @app.command()
-def news(query: str):
-    """只收集舆情原始信息（调试）。"""
+def metrics(query: str):
+    """只算风险绩效指标（夏普/索提诺/卡玛/VaR 等，调试）。"""
     asset = resolve(query)
-    typer.echo(json.dumps(_news_for(asset), ensure_ascii=False, indent=2))
+    typer.echo(json.dumps(compute_metrics(_prices_for(asset)), ensure_ascii=False, indent=2))
+
+
+@app.command()
+def profile(query: str):
+    """基金基本面：经理/持仓/评级（黄金不适用，调试）。"""
+    asset = resolve(query)
+    typer.echo(json.dumps(_profile_for(asset), ensure_ascii=False, indent=2))
 
 
 @app.command("log-signal")

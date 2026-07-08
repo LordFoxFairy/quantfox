@@ -4,32 +4,37 @@ from typing import Literal, Optional
 import pandas as pd
 from pydantic import BaseModel
 
+from .data.prices import has_ohlc
 from .data.resolve import Asset
 from .indicators import compute_indicators
+from .metrics import compute_metrics
 from .percentile import price_percentile
 
 
 class PriceBlock(BaseModel):
     latest: Optional[float] = None
     latest_date: Optional[str] = None
-    returns: dict = {}
-    max_drawdown_1y: Optional[float] = None
-    volatility_1y: Optional[float] = None
 
 
 class DataQuality(BaseModel):
     price: Literal["ok", "stale", "partial", "missing"] = "missing"
-    news: Literal["ok", "sparse", "missing"] = "missing"
+    ohlc: Literal["available", "unavailable"] = "unavailable"
+    profile: Literal["ok", "partial", "n/a"] = "n/a"
     notes: list[str] = []
 
 
 class EvidenceCard(BaseModel):
-    schema_version: str = "1.0"
+    """证据卡。专业主料：profile(基本面) + metrics(风险绩效)；technical 指标为辅助。
+    舆情不放这里——由 CC agent 自己用 WebSearch 搜最新的并鉴别。"""
+
+    schema_version: str = "2.0"
     asset: Asset
     price: PriceBlock = PriceBlock()
-    indicators: dict = {}
+    returns: dict = {}
+    metrics: dict = {}
+    profile: dict = {}
+    indicators: dict = {}  # 辅助：技术指标
     percentile: dict = {}
-    news: list[dict] = []
     track_record: Optional[dict] = None
     data_quality: DataQuality = DataQuality()
 
@@ -37,17 +42,29 @@ class EvidenceCard(BaseModel):
         return json.dumps(self.model_dump(), ensure_ascii=False, indent=2)
 
     def to_markdown(self) -> str:
-        p = self.price
-        lines = [
-            f"# 证据卡：{self.asset.name or self.asset.symbol} ({self.asset.symbol})",
-            f"- 类型：{self.asset.type}  最新：{p.latest}（{p.latest_date}）",
-            f"- 收益 1w/1m/3m/1y：{p.returns}",
-            f"- 最大回撤1y：{p.max_drawdown_1y}  年化波动：{p.volatility_1y}",
-            f"- 均线：{self.indicators.get('ma')}",
-            f"- MACD：{self.indicators.get('macd')}  RSI14：{self.indicators.get('rsi14')}",
-            f"- 布林：{self.indicators.get('boll')}  历史分位：{self.percentile}",
-            f"- 舆情条数：{len(self.news)}  战绩：{self.track_record}",
-            f"- 数据质量：price={self.data_quality.price} news={self.data_quality.news} {self.data_quality.notes}",
+        m, ind, pf = self.metrics, self.indicators, self.profile
+        lines = [f"# 证据卡：{self.asset.name or self.asset.symbol} ({self.asset.symbol})",
+                 f"- 类型：{self.asset.type}  最新：{self.price.latest}（{self.price.latest_date}）"]
+        if pf.get("applicable"):
+            b = pf.get("basic") or {}
+            h = pf.get("holdings") or {}
+            r = pf.get("rating") or {}
+            lines += [
+                f"- 【基本面】{b.get('company')} · 经理 {b.get('manager')} · {b.get('type')} · 成立 {b.get('inception')} · 规模 {b.get('scale')}",
+                f"- 【评级】晨星 {r.get('morningstar')} · 手续费 {r.get('fee')}",
+                f"- 【重仓】前十占比 {h.get('top10_concentration')}%：" +
+                "，".join(f"{x['name']}({x['pct']}%)" for x in (h.get('top') or [])[:5]),
+            ]
+        lines += [
+            f"- 【收益】1w/1m/3m/6m/1y/YTD：{self.returns}",
+            f"- 【绩效】CAGR={m.get('cagr')} 夏普={m.get('sharpe')} 索提诺={m.get('sortino')} 卡玛={m.get('calmar')}",
+            f"- 【风险】最大回撤={m.get('max_drawdown')} 年化波动={m.get('ann_vol')} VaR95={m.get('var95')} 胜率={m.get('win_rate')}",
+            f"- 【估值】历史分位：{self.percentile}  价格位置：{ind.get('price_levels')}",
+            f"- 【技术(辅助)】均线={ind.get('ma', {}).get('alignment')} MACD={ind.get('macd', {}).get('state')} "
+            f"RSI={ind.get('rsi')} OHLC类={ind.get('ohlc', {}).get('available')}",
+            f"- 战绩：{self.track_record}",
+            f"- 数据质量：price={self.data_quality.price} ohlc={self.data_quality.ohlc} "
+            f"profile={self.data_quality.profile} {self.data_quality.notes}",
         ]
         return "\n".join(lines)
 
@@ -56,37 +73,49 @@ def build_evidence(
     asset: Asset,
     *,
     prices: pd.DataFrame,
-    news: list[dict],
+    profile: dict,
     track_record: Optional[dict],
 ) -> EvidenceCard:
     notes: list[str] = []
+    returns: dict = {}
+    metrics: dict = {}
+    indicators: dict = {}
+    pct: dict = {}
+    ohlc = "unavailable"
+
     if prices is None or len(prices) == 0:
         price = PriceBlock()
-        indicators: dict = {}
-        pct: dict = {}
         pq = "missing"
         notes.append("无价格数据")
     else:
-        ind = compute_indicators(prices)
+        met = compute_metrics(prices)
+        returns = met.pop("returns", {})
+        metrics = met
+        indicators = compute_indicators(prices)
+        pct = price_percentile(prices, years=3)
         price = PriceBlock(
             latest=float(prices["value"].iloc[-1]),
             latest_date=str(prices["date"].iloc[-1]),
-            returns=ind["returns"],
-            max_drawdown_1y=ind["max_drawdown_1y"],
-            volatility_1y=ind["volatility_1y"],
         )
-        indicators = {k: ind[k] for k in ("ma", "macd", "rsi14", "boll")}
-        pct = price_percentile(prices, years=3)
         pq = "ok" if len(prices) >= 252 else "partial"
         if pq == "partial":
-            notes.append("价格数据不足一年，指标置信度下调")
-    nq = "ok" if len(news) >= 3 else ("sparse" if news else "missing")
+            notes.append("价格数据不足一年，指标与风险绩效置信度下调")
+        ohlc = "available" if has_ohlc(prices) else "unavailable"
+        if ohlc == "unavailable":
+            notes.append("场外基金仅净值：ATR/KDJ/CCI/Williams%R/ADX 不可用")
+
+    profile = profile or {}
+    if not profile.get("applicable"):
+        pfq = "n/a"
+    elif profile.get("basic") and profile.get("holdings", {}).get("top"):
+        pfq = "ok"
+    else:
+        pfq = "partial"
+        notes.append("部分基本面/持仓数据缺失")
+
     return EvidenceCard(
-        asset=asset,
-        price=price,
-        indicators=indicators,
-        percentile=pct,
-        news=news,
+        asset=asset, price=price, returns=returns, metrics=metrics,
+        profile=profile, indicators=indicators, percentile=pct,
         track_record=track_record,
-        data_quality=DataQuality(price=pq, news=nq, notes=notes),
+        data_quality=DataQuality(price=pq, ohlc=ohlc, profile=pfq, notes=notes),
     )

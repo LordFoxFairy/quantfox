@@ -25,9 +25,17 @@ def test_load_fund_prices_shape():
     assert len(df) > 0
 
 
-def test_load_gold_prices_shape():
+def test_load_gold_prices_has_ohlc():
     a = Asset(symbol="Au99.99", type="gold")
     df = load_prices(a, fetcher=_gold_fetcher)
-    assert list(df.columns) == ["date", "value"]
+    assert df.columns[:2].tolist() == ["date", "value"]
+    # 黄金应带 OHLC，用于 ATR/KDJ 等需要最高最低价的指标
+    assert "high" in df.columns and "low" in df.columns
     assert df["value"].dtype == float
     assert len(df) > 0
+
+
+def test_fund_has_no_ohlc():
+    a = Asset(symbol="501018", type="otc_fund")
+    df = load_prices(a, fetcher=_fund_fetcher)
+    assert "high" not in df.columns

@@ -1,41 +1,31 @@
+"""技术指标。全部基于成熟库 `ta` 计算——加一个指标 = 加一行，不手撸公式。
+
+- 仅需收盘价的指标（MA/EMA/MACD/RSI/ROC/MOM/BOLL/HV/价格位置）：基金与黄金都算。
+- 需要最高最低价的指标（ATR/KDJ/CCI/Williams%R/ADX）：黄金（有 OHLC）才算；
+  基金仅净值 → 返回 None，由 data_quality 标注不可用。
+"""
 import pandas as pd
+import ta
 
 
 def _f(x):
     return None if x is None or pd.isna(x) else float(x)
 
 
-def _ret(s: pd.Series, n: int):
-    if len(s) <= n:
+def _last(series):
+    try:
+        return _f(series.iloc[-1])
+    except Exception:  # noqa
         return None
-    return _f(s.iloc[-1] / s.iloc[-1 - n] - 1.0)
 
 
-def _ema(s: pd.Series, span: int) -> pd.Series:
-    return s.ewm(span=span, adjust=False).mean()
-
-
-def _rsi(s: pd.Series, length: int = 14) -> pd.Series:
-    delta = s.diff()
-    gain = delta.clip(lower=0.0)
-    loss = -delta.clip(upper=0.0)
-    # Wilder 平滑
-    avg_gain = gain.ewm(alpha=1.0 / length, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1.0 / length, adjust=False).mean()
-    total = avg_gain + avg_loss
-    # 等价于 100 - 100/(1+rs)，但无除零：全程上涨→100，全程下跌→0，纯平盘→NaN
-    return 100.0 * avg_gain / total.replace(0.0, float("nan"))
-
-
-def compute_indicators(df: pd.DataFrame) -> dict:
-    s = df["value"].reset_index(drop=True).astype(float)
-    n = len(s)
-
+def _ma_block(s: pd.Series, n: int) -> dict:
     def ma(w):
         return _f(s.rolling(w).mean().iloc[-1]) if n >= w else None
 
     ma5, ma10, ma20, ma60 = ma(5), ma(10), ma(20), ma(60)
-    if None not in (ma5, ma10, ma20, ma60):
+    core = [ma5, ma10, ma20, ma60]
+    if None not in core:
         if ma5 >= ma10 >= ma20 >= ma60:
             alignment = "多头"
         elif ma5 <= ma10 <= ma20 <= ma60:
@@ -44,57 +34,86 @@ def compute_indicators(df: pd.DataFrame) -> dict:
             alignment = "纠缠"
     else:
         alignment = "纠缠"
+    return {"ma5": ma5, "ma10": ma10, "ma20": ma20, "ma60": ma60,
+            "ma120": ma(120), "ma250": ma(250), "alignment": alignment}
 
-    if n >= 35:
-        dif_s = _ema(s, 12) - _ema(s, 26)
-        dea_s = _ema(dif_s, 9)
-        hist_s = dif_s - dea_s
-        dif, dea, hist = _f(dif_s.iloc[-1]), _f(dea_s.iloc[-1]), _f(hist_s.iloc[-1])
-        prev_hist = _f(hist_s.iloc[-2]) if len(hist_s) >= 2 else None
-        state = "—"
-        if prev_hist is not None and hist is not None:
-            if prev_hist <= 0 < hist:
-                state = "金叉"
-            elif prev_hist >= 0 > hist:
-                state = "死叉"
+
+def _macd_block(s: pd.Series, n: int) -> dict:
+    if n < 35:
+        return {"dif": None, "dea": None, "hist": None, "state": "—"}
+    m = ta.trend.MACD(s)
+    hist_s = m.macd_diff()
+    dif, dea, hist = _last(m.macd()), _last(m.macd_signal()), _last(hist_s)
+    prev = _f(hist_s.iloc[-2]) if len(hist_s) >= 2 else None
+    state = "—"
+    if prev is not None and hist is not None:
+        state = "金叉" if prev <= 0 < hist else ("死叉" if prev >= 0 > hist else "—")
+    return {"dif": dif, "dea": dea, "hist": hist, "state": state}
+
+
+def _boll_block(s: pd.Series, n: int) -> dict:
+    if n < 20:
+        return {"pos": "中轨", "upper": None, "mid": None, "lower": None, "bandwidth": None}
+    b = ta.volatility.BollingerBands(s, window=20, window_dev=2)
+    upper, mid, lower = _last(b.bollinger_hband()), _last(b.bollinger_mavg()), _last(b.bollinger_lband())
+    last = _f(s.iloc[-1])
+    bandwidth = _f((upper - lower) / mid) if (None not in (upper, lower, mid) and mid) else None
+    if None not in (lower, upper, last):
+        span = (upper - lower) or 1.0
+        r = (last - lower) / span
+        pos = "上轨附近" if r >= 0.8 else ("下轨附近" if r <= 0.2 else "中轨")
     else:
-        dif = dea = hist = None
-        state = "—"
+        pos = "中轨"
+    return {"pos": pos, "upper": upper, "mid": mid, "lower": lower, "bandwidth": bandwidth}
 
-    rsi = _f(_rsi(s, 14).iloc[-1]) if n >= 15 else None
 
-    if n >= 20:
-        mid = s.rolling(20).mean()
-        std = s.rolling(20).std()
-        lower = _f((mid - 2 * std).iloc[-1])
-        upper = _f((mid + 2 * std).iloc[-1])
-        last = _f(s.iloc[-1])
-        width = _f(upper - lower) if None not in (upper, lower) else None
-        if None not in (lower, upper, last):
-            span = (upper - lower) or 1.0
-            r = (last - lower) / span
-            pos = "上轨附近" if r >= 0.8 else ("下轨附近" if r <= 0.2 else "中轨")
-        else:
-            pos = "中轨"
-    else:
-        pos, width = "中轨", None
+def _hv(s: pd.Series, w: int):
+    if len(s) < w + 1:
+        return None
+    return _f(s.pct_change().tail(w).std() * (252 ** 0.5))
 
-    dd = None
-    if n >= 60:
-        window = s.iloc[-252:] if n >= 252 else s
-        dd = _f((window / window.cummax() - 1.0).min())
 
-    vol = None
-    if n >= 30:
-        window = s.iloc[-252:] if n >= 252 else s
-        vol = _f(window.pct_change().std() * (252 ** 0.5))
+def _price_levels(s: pd.Series) -> dict:
+    win = s.tail(250)
+    hi, lo, last = _f(win.max()), _f(win.min()), _f(s.iloc[-1])
+    pos = _f((last - lo) / (hi - lo)) if (None not in (hi, lo, last) and hi != lo) else None
+    return {"high_52w": hi, "low_52w": lo, "pct_position": pos}
 
+
+def _ohlc_block(df: pd.DataFrame) -> dict:
+    """需要最高最低价的指标；无 OHLC 返回全 None（基金只有净值）。"""
+    if not all(c in df.columns for c in ("high", "low")):
+        return {"available": False, "atr14": None, "kdj": None,
+                "cci14": None, "wr14": None, "adx14": None}
+    c = df["value"].astype(float).reset_index(drop=True)
+    h = df["high"].astype(float).reset_index(drop=True)
+    low = df["low"].astype(float).reset_index(drop=True)
+
+    atr = _last(ta.volatility.AverageTrueRange(h, low, c, window=14).average_true_range())
+    cci = _last(ta.trend.CCIIndicator(h, low, c, window=14).cci())
+    wr = _last(ta.momentum.WilliamsRIndicator(h, low, c, lbp=14).williams_r())
+    adx = _last(ta.trend.ADXIndicator(h, low, c, window=14).adx())
+    stoch = ta.momentum.StochasticOscillator(h, low, c, window=9, smooth_window=3)
+    k, d = _last(stoch.stoch()), _last(stoch.stoch_signal())
+    kdj = {"k": k, "d": d, "j": _f(3 * k - 2 * d)} if None not in (k, d) else None
+    return {"available": True, "atr14": atr, "kdj": kdj, "cci14": cci, "wr14": wr, "adx14": adx}
+
+
+def compute_indicators(df: pd.DataFrame) -> dict:
+    s = df["value"].reset_index(drop=True).astype(float)
+    n = len(s)
     return {
-        "ma": {"ma5": ma5, "ma10": ma10, "ma20": ma20, "ma60": ma60, "alignment": alignment},
-        "macd": {"dif": dif, "dea": dea, "hist": hist, "state": state},
-        "rsi14": rsi,
-        "boll": {"pos": pos, "width": width},
-        "returns": {"1w": _ret(s, 5), "1m": _ret(s, 20), "3m": _ret(s, 60), "1y": _ret(s, 250)},
-        "max_drawdown_1y": dd,
-        "volatility_1y": vol,
+        "ma": _ma_block(s, n),
+        "ema": {"ema12": _last(ta.trend.EMAIndicator(s, window=12).ema_indicator()) if n >= 12 else None,
+                "ema26": _last(ta.trend.EMAIndicator(s, window=26).ema_indicator()) if n >= 26 else None},
+        "macd": _macd_block(s, n),
+        "rsi": {"rsi6": _last(ta.momentum.RSIIndicator(s, window=6).rsi()) if n >= 7 else None,
+                "rsi12": _last(ta.momentum.RSIIndicator(s, window=12).rsi()) if n >= 13 else None,
+                "rsi24": _last(ta.momentum.RSIIndicator(s, window=24).rsi()) if n >= 25 else None},
+        "roc12": _last(ta.momentum.ROCIndicator(s, window=12).roc()) if n >= 13 else None,
+        "mom10": _f(s.iloc[-1] - s.iloc[-11]) if n >= 11 else None,
+        "boll": _boll_block(s, n),
+        "hv": {"hv20": _hv(s, 20), "hv60": _hv(s, 60)},
+        "price_levels": _price_levels(s),
+        "ohlc": _ohlc_block(df),
     }

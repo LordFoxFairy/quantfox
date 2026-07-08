@@ -11,7 +11,14 @@
 - [ ] **P2**：每日 `loop` 定时（headless `--llm` 走 Claude API）、回测（vectorbt/backtrader）、更多结构化数据源。
 - [ ] **P3**：网页 K 线看板、正式对外发布与文档。
 
-- [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`（含 SKILL.md + references/ + scripts/）。别人可 `/plugin marketplace add <repo>` 安装。
+- [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。
+- [x] **专业化重构**（2026-07-08）：
+  - 指标改为库化（`ta`），不再手撸；加指标=加一行。
+  - 新增**风险绩效** `metrics.py`（夏普/索提诺/卡玛/VaR/CVaR/回撤/CAGR/胜率/偏峰度，两资产可算）。
+  - 新增**专业基本面** `fund_profile.py`（基金经理/持仓/评级/规模费率）——引擎真正的护城河。
+  - 技术指标**降级为辅助**；证据卡以 profile + metrics + 估值分位为主。
+  - **删除 news 引擎**：舆情由 CC agent 用 WebSearch 自搜自判。
+  - SKILL.md 重写为**专业分析 SOP**；分析框架 v3 定优先级（它是什么→贵不贵→险不险→靠不靠谱→风往哪吹→技术面辅助）。
 
 ### 已知待办（推广前）
 - [ ] 推到 GitHub，把 README 里 `/plugin marketplace add thefoxfairy/money` 换成真实仓库地址。

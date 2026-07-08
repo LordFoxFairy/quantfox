@@ -36,14 +36,17 @@ uv sync
 
 ## CLI 用法
 ```bash
-uv run money evidence gold --format markdown   # 黄金证据卡（人类可读）
-uv run money evidence 501018 --format json     # 基金证据卡（给 Claude 读）
-uv run money fetch 501018                       # 只看原始净值
-uv run money indicators gold                    # 只看技术指标
-uv run money news 黄金                           # 只看舆情原始信息
-uv run money review 501018                      # 看某标的历史战绩
-uv run money review --all                       # 全局战绩
+uv run money evidence 000001 --format markdown  # 完整证据卡（基本面+风险绩效+估值+指标）
+uv run money profile 000001                      # 基金基本面：经理/持仓/评级
+uv run money metrics 000001                      # 风险绩效：夏普/索提诺/卡玛/VaR/回撤…
+uv run money indicators gold                     # 技术指标（辅助）
+uv run money fetch 000001                        # 原始净值/价格序列
+uv run money review 000001 / --all               # 历史战绩
 ```
+
+**分工**：引擎提供**专业数据**（基金经理/持仓/评级/规模费率 + 净值/OHLC）+ 库化预计算（`ta` 算指标、
+风险绩效）+ 复盘存档；**舆情/宏观由 CC agent 自己用 WebSearch 搜并鉴别**（比固定数据源更新更准）；
+技术指标只是**辅助**。需要最高最低价的 KDJ/ATR/CCI/W%R/ADX 仅黄金可算。
 
 ## Skill 用法（推荐日常入口）
 在 Claude Code 里直接说：**"帮我分析下 501018"** 或 **"看看黄金现在能不能买"**。

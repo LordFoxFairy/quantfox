@@ -14,7 +14,7 @@ def test_evidence_gold_markdown(monkeypatch, tmp_path):
         "value": [float(i) for i in range(1, 401)],
     })
     monkeypatch.setattr(cli, "_prices_for", lambda asset: df)
-    monkeypatch.setattr(cli, "_news_for", lambda asset: [])
+    monkeypatch.setattr(cli, "_profile_for", lambda asset: {"applicable": False})
     result = runner.invoke(app, ["evidence", "gold", "--format", "markdown"])
     assert result.exit_code == 0
     assert "证据卡" in result.stdout

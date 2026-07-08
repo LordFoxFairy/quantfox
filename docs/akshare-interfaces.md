@@ -12,10 +12,15 @@
 - 返回列：`['date', 'open', 'close', 'low', 'high']`
 - 映射：`date -> date`，`close -> value`
 
-## 财经新闻
-- 函数：`ak.stock_news_em(symbol="<关键词或代码>")`（symbol="黄金" 对黄金有效）
-- 返回列：`['关键词', '新闻标题', '新闻内容', '发布时间', '文章来源', '新闻链接']`
-- 映射：`新闻标题 -> title`，`文章来源 -> source`，`发布时间 -> date`，`新闻链接 -> url`，`新闻内容 -> summary`
+## 专业基金基本面（money/data/fund_profile.py）
+- 基本信息：`ak.fund_individual_basic_info_xq(symbol="<代码>")` → item/value 两列（含名称/成立/公司/经理/类型/规模）。
+- 持仓：`ak.fund_portfolio_hold_em(symbol="<代码>", date="<年份>")` → `序号/股票代码/股票名称/占净值比例/持股数/持仓市值/季度`。
+- 评级：`ak.fund_rating_all()` → `代码/简称/基金经理/基金公司/5星评级家数/上海证券/济安金信/晨星评级/手续费/类型`。
+- 同类业绩排名：`ak.fund_open_fund_rank_em(symbol="<类型>")` → 近1周/月/季/半年/1年/3年 收益。
+
+## 舆情：不由引擎负责
+新闻/舆情/宏观由 CC agent 自己用 WebSearch/WebFetch 获取并鉴别（比固定数据源更新更准），
+不再在引擎里做（原 `stock_news_em` 方案已移除）。
 
 ## fixtures
 - `tests/fixtures/fund_nav_sample.json`（基金 501018 近 120 条）
