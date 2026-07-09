@@ -48,6 +48,11 @@ class Ledger:
               symbol TEXT PRIMARY KEY, type TEXT, status TEXT,
               entry_price REAL, entry_date TEXT, target_price REAL, note TEXT
             );
+            CREATE TABLE IF NOT EXISTS lots (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              symbol TEXT, type TEXT, amount REAL, order_date TEXT,
+              confirm_nav REAL, shares REAL, confirm_date TEXT, note TEXT
+            );
             """
         )
         cols = [r["name"] for r in c.execute("PRAGMA table_info(predictions)").fetchall()]
@@ -81,8 +86,60 @@ class Ledger:
     def remove_holding(self, symbol):
         c = self._conn()
         cur = c.execute("DELETE FROM holdings WHERE symbol=?", (symbol,))
+        c.execute("DELETE FROM lots WHERE symbol=?", (symbol,))  # 连带清掉分笔
         c.commit()
         return cur.rowcount
+
+    # --- 按金额分笔记账（lots）：支持多笔分批建仓，聚合出加权成本 ---
+    def add_lot(self, symbol, type, amount, confirm_nav, order_date, confirm_date=None, note=""):
+        """记一笔买入：金额 + 支付宝确认净值 → 份额。追加不覆盖；自动更新持仓加权成本。"""
+        shares = round(amount / confirm_nav, 4) if confirm_nav else None
+        c = self._conn()
+        c.execute(
+            "INSERT INTO lots (symbol,type,amount,order_date,confirm_nav,shares,confirm_date,note) "
+            "VALUES (?,?,?,?,?,?,?,?)",
+            (symbol, type, amount, order_date, confirm_nav, shares, confirm_date or order_date, note))
+        c.commit()
+        self._recompute_holding(symbol, type)
+        return shares
+
+    def list_lots(self, symbol):
+        c = self._conn()
+        return [dict(r) for r in
+                c.execute("SELECT * FROM lots WHERE symbol=? ORDER BY order_date, id", (symbol,)).fetchall()]
+
+    def _recompute_holding(self, symbol, type):
+        lots = self.list_lots(symbol)
+        if not lots:
+            return
+        tot_amt = sum(x["amount"] for x in lots if x["amount"])
+        tot_sh = sum(x["shares"] for x in lots if x["shares"])
+        wcost = round(tot_amt / tot_sh, 4) if tot_sh else None
+        first = min(x["order_date"] for x in lots)
+        c = self._conn()
+        cur = c.execute("UPDATE holdings SET status='holding',entry_price=?,entry_date=? WHERE symbol=?",
+                        (wcost, first, symbol))
+        if cur.rowcount == 0:
+            c.execute("INSERT INTO holdings (symbol,type,status,entry_price,entry_date,target_price,note) "
+                      "VALUES (?,?,'holding',?,?,NULL,'')", (symbol, type, wcost, first))
+        c.commit()
+
+    def position(self, symbol, latest_nav=None):
+        """持仓聚合：总金额/总份额/加权成本；给 latest_nav 则算现值与浮盈亏。"""
+        lots = self.list_lots(symbol)
+        if not lots:
+            return None
+        tot_amt = round(sum(x["amount"] for x in lots if x["amount"]), 2)
+        tot_sh = round(sum(x["shares"] for x in lots if x["shares"]), 4)
+        wcost = round(tot_amt / tot_sh, 4) if tot_sh else None
+        out = {"symbol": symbol, "lots": lots, "total_amount": tot_amt,
+               "total_shares": tot_sh, "weighted_cost": wcost}
+        if latest_nav and tot_sh:
+            cur_val = round(tot_sh * latest_nav, 2)
+            out.update({"latest_nav": latest_nav, "current_value": cur_val,
+                        "pnl": round(cur_val - tot_amt, 2),
+                        "pnl_pct": round(cur_val / tot_amt - 1, 4) if tot_amt else None})
+        return out
 
     def _conn(self):
         c = sqlite3.connect(self.db_path)

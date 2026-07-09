@@ -372,13 +372,44 @@ def watch_add(symbol: str,
 
 @watch_app.command("buy")
 def watch_buy(symbol: str,
-              entry_price: float = typer.Option(..., help="买入价（支付宝确认的真实净值）"),
-              entry_date: str = typer.Option(None, help="买入日期 YYYY-MM-DD，默认今天")):
-    """标记为【已买入·持有中】（可对观测中的标的转态，或直接新增持仓）。"""
+              amount: float = typer.Option(None, help="买入金额（元）——按金额记一笔，需配 --nav"),
+              nav: float = typer.Option(None, help="支付宝确认的成交净值（T+1 确认后的真实净值）"),
+              entry_price: float = typer.Option(None, help="已知加权成本净值时用（单笔/直填成本，二选一）"),
+              entry_date: str = typer.Option(None, help="下单日期 YYYY-MM-DD，默认今天")):
+    """记一笔买入（支持分批）：给 --amount+--nav 按金额记 lot；或 --entry-price 直填成本。"""
     asset = resolve(symbol)
     entry_date = entry_date or _dt.date.today().isoformat()
-    _ledger().mark_bought(asset.symbol, asset.type, entry_price, entry_date)
-    typer.echo(json.dumps({"holding": asset.symbol, "entry_date": entry_date}, ensure_ascii=False))
+    led = _ledger()
+    if amount is not None:
+        if nav is None:
+            raise typer.BadParameter("按金额记账需同时给 --nav（支付宝确认的成交净值）")
+        shares = led.add_lot(asset.symbol, asset.type, amount, nav, entry_date)
+        typer.echo(json.dumps({"holding": asset.symbol, "lot": {"amount": amount, "nav": nav, "shares": shares},
+                               "position": led.position(asset.symbol)}, ensure_ascii=False))
+    elif entry_price is not None:
+        led.mark_bought(asset.symbol, asset.type, entry_price, entry_date)
+        typer.echo(json.dumps({"holding": asset.symbol, "entry_price": entry_price, "entry_date": entry_date},
+                              ensure_ascii=False))
+    else:
+        raise typer.BadParameter("给 --amount+--nav（按金额记一笔），或 --entry-price（已知加权成本）")
+
+
+@watch_app.command("position")
+def watch_position(symbol: str):
+    """查看某只持仓：分笔明细 + 加权成本 + 现值 + 浮盈亏。"""
+    asset = resolve(symbol)
+    led = _ledger()
+    pos = led.position(asset.symbol)
+    if pos is None:
+        typer.echo(json.dumps({"symbol": asset.symbol, "note": "无分笔记录（用 watch buy --amount --nav 记账）"},
+                              ensure_ascii=False))
+        return
+    try:
+        latest = float(_prices_for(asset)["value"].iloc[-1])
+        pos = led.position(asset.symbol, latest_nav=latest)
+    except Exception:  # noqa
+        pass
+    typer.echo(json.dumps(pos, ensure_ascii=False, indent=2))
 
 
 @watch_app.command("list")
