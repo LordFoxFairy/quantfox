@@ -16,10 +16,10 @@
       "strict": false,
       "skills": [
         "./skills/fund-analyze",
-        "./skills/fund-position",
         "./skills/fund-compare",
-        "./skills/fund-portfolio",
-        "./skills/fund-review"
+        "./skills/position-sizer",
+        "./skills/portfolio-manager",
+        "./skills/signal-postmortem"
       ]
     }
   ]

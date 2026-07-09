@@ -8,7 +8,7 @@
   - 20 个单测全绿；黄金与基金 501018 真实端到端冒烟通过。
 
 - [x] **多-skill 架构 + 可视化报告**（2026-07-08）：
-  - 拆成 4 个各自闭环的 skill（挂 money-quant 插件）：`fund-analyze`（取数→四维评分卡→可视化报告→存档一条龙）、`fund-position`（仓位/定投，适配自 tradermonty position-sizer）、`fund-compare`（多标的对比）、`fund-review`（复盘，适配自 tradermonty signal-postmortem）。
+  - 拆成各自闭环的 skill（挂 money-quant 插件）：`fund-analyze`（取数→四维评分卡+情景分析→可视化报告→存档）、`fund-compare`（多标的对比）+ **保留上游原名直接适配**的 `position-sizer`（仓位/定投）、`portfolio-manager`（组合体检+持仓穿透）、`signal-postmortem`（复盘）——均来自 tradermonty/claude-trading-skills，原名保留便于后续同步上游更新。
   - `money report`：自包含 **ECharts HTML 报告**（K线/净值+回撤+持仓饼+四维评分卡），浏览器打开；已用 Playwright 真实渲染验证。
   - 分析框架 v4：四维评分卡 + Verdict/信心 + Kill criteria（适配自 xvary）。
   - 评估并放弃 quantstats（英文通用、重依赖），主报告用 ECharts。

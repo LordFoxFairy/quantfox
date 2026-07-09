@@ -1,5 +1,5 @@
 ---
-name: fund-portfolio
+name: portfolio-manager
 description: >-
   管理/体检整个基金组合（你持有的一篮子基金 + 可含黄金）——配置结构、**持仓穿透后的真实集中度**、
   风险、逐只该留/加/减/换、再平衡建议。当用户给出多只持仓（含金额/比例）问"帮我看看我的组合 /
@@ -8,7 +8,7 @@ description: >-
   方法论适配自 github.com/tradermonty/claude-trading-skills 的 portfolio-manager。
 ---
 
-# fund-portfolio — 基金组合体检与再平衡（闭环）
+# portfolio-manager — 基金组合体检与再平衡（闭环，适配自上游同名 skill）
 
 分析"你已经持有的一篮子"，不是孤立看每只，而是看**整体是否合理**。核心适配点：**基金要穿透到底层持仓看真实集中度**——两只"不同"的基金可能都重仓半导体，看似分散实则押注单一赛道。
 

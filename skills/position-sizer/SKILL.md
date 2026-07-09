@@ -1,5 +1,5 @@
 ---
-name: fund-position
+name: position-sizer
 description: >-
   给出场外基金/黄金的**仓位与定投建议**——该投多少钱、一次性买还是分批定投、每期投多少、加减仓与离场纪律。
   当用户问"我有 X 万该买多少 / 这只基金投多少合适 / 怎么定投 / 该加仓吗减仓吗 / 仓位控制"等时触发。
@@ -7,7 +7,7 @@ description: >-
   方法论适配自 github.com/tradermonty/claude-trading-skills 的 position-sizer（1% 风险法、生存优先）。
 ---
 
-# fund-position — 仓位与定投建议（闭环）
+# position-sizer — 仓位与定投建议（闭环，适配自上游同名 skill）
 
 **核心原则（抄 position-sizer）：生存优先——仓位管理是为了熬过连续亏损、活到反转，不是为了单次利润最大化。**
 

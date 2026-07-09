@@ -1,5 +1,5 @@
 ---
-name: fund-review
+name: signal-postmortem
 description: >-
   复盘历史判断——把 fund-analyze 存过的信号，对照后来的真实涨跌，算命中率/信息系数/超额收益，分类 TP/FP，
   按标的与周期聚合，产出复盘报告与改进点。当用户问"我之前的判断准不准 / 复盘一下 / 战绩如何 / 哪类判断老错 /
@@ -7,7 +7,7 @@ description: >-
   方法论适配自 github.com/tradermonty/claude-trading-skills 的 signal-postmortem。
 ---
 
-# fund-review — 复盘与战绩（闭环）
+# signal-postmortem — 复盘与战绩（闭环，适配自上游同名 skill）
 
 把"预测 → 真实结果"闭环起来，这是"越用越准"的地基。方法论抄 signal-postmortem：预测方向 vs 真实收益，分类后按标的/周期聚合。
 
