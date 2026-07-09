@@ -19,7 +19,7 @@ def test_all_skills_valid_frontmatter():
 def test_fund_analyze_closed_loop():
     # 主 skill 内部要闭环：取数→评分卡→报告→存档
     text = (SKILLS / "fund-analyze" / "SKILL.md").read_text(encoding="utf-8")
-    for cmd in ("money evidence", "money report", "money log-signal"):
+    for cmd in ("quantfox evidence", "quantfox report", "quantfox log-signal"):
         assert cmd in text
     assert "analysis_framework" in text
 

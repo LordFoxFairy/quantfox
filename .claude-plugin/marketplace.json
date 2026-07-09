@@ -1,5 +1,5 @@
 {
-  "name": "foxfairy-money",
+  "name": "quantfox",
   "owner": {
     "name": "LordFoxFairy",
     "email": "yangcode920@gmail.com"
@@ -10,7 +10,7 @@
   },
   "plugins": [
     {
-      "name": "money-quant",
+      "name": "quantfox",
       "description": "场外基金与黄金的量化投研套件：单标的深度分析+可视化报告、仓位/定投建议、多标的对比、历史复盘。共用 akshare 数据引擎，每个 skill 内部自闭环。",
       "source": "./",
       "strict": false,

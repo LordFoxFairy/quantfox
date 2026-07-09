@@ -1,14 +1,14 @@
 import pandas as pd
 from typer.testing import CliRunner
 
-import money.cli as cli
-from money.cli import app
+import quantfox.cli as cli
+from quantfox.cli import app
 
 runner = CliRunner()
 
 
 def test_evidence_gold_markdown(monkeypatch, tmp_path):
-    monkeypatch.setenv("MONEY_HOME", str(tmp_path))
+    monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
     df = pd.DataFrame({
         "date": pd.date_range("2022-01-01", periods=400).strftime("%Y-%m-%d"),
         "value": [float(i) for i in range(1, 401)],

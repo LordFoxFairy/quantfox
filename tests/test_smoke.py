@@ -1,5 +1,5 @@
-import money
+import quantfox
 
 
 def test_version():
-    assert money.__version__ == "0.1.0"
+    assert quantfox.__version__ == "0.1.0"

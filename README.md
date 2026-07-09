@@ -6,24 +6,24 @@
 
 ## 设计要点：一条缝 + 两个契约
 - **一条缝**：CLI（确定层）只产出客观数据的"证据卡"JSON，永不下结论；Skill（判断层 = Claude）只依赖证据卡 schema 做推理。
-- **两个契约**：证据卡 schema（`money/evidence.py`）+ 分析框架（`money/prompts/analysis_framework.md`）。
+- **两个契约**：证据卡 schema（`money/evidence.py`）+ 分析框架（`quantfox/prompts/analysis_framework.md`）。
 - **复盘飞轮**：每次预测 append-only 存档，到期用真实净值算命中率/IC/超额收益，Claude 分析前先看战绩自我校准。
 
 ## 作为 Claude Code Skill 安装（推荐，可发布分享）
 
 本仓库本身是一个 **Claude Code plugin marketplace**（清单在 `.claude-plugin/marketplace.json`），
-里面的 `money-quant` 插件带 `fund-analyze` 技能。别人这样装：
+里面的 `quantfox` 插件带 `fund-analyze` 技能。别人这样装：
 
 ```
 /plugin marketplace add thefoxfairy/money      # 换成本仓库的 GitHub 地址
-/plugin install money-quant@foxfairy-money
+/plugin install quantfox@quantfox
 ```
 
 本地开发/自测（在仓库根目录）：
 
 ```
 /plugin marketplace add .
-/plugin install money-quant@foxfairy-money
+/plugin install quantfox@quantfox
 ```
 
 首次使用前，安装引擎依赖：`bash skills/fund-analyze/scripts/setup.sh`。
@@ -36,12 +36,12 @@ uv sync
 
 ## CLI 用法
 ```bash
-uv run money evidence 000001 --format markdown  # 完整证据卡（基本面+风险绩效+估值+指标）
-uv run money profile 000001                      # 基金基本面：经理/持仓/评级
-uv run money metrics 000001                      # 风险绩效：夏普/索提诺/卡玛/VaR/回撤…
-uv run money indicators gold                     # 技术指标（辅助）
-uv run money fetch 000001                        # 原始净值/价格序列
-uv run money review 000001 / --all               # 历史战绩
+uv run quantfox evidence 000001 --format markdown  # 完整证据卡（基本面+风险绩效+估值+指标）
+uv run quantfox profile 000001                      # 基金基本面：经理/持仓/评级
+uv run quantfox metrics 000001                      # 风险绩效：夏普/索提诺/卡玛/VaR/回撤…
+uv run quantfox indicators gold                     # 技术指标（辅助）
+uv run quantfox fetch 000001                        # 原始净值/价格序列
+uv run quantfox review 000001 / --all               # 历史战绩
 ```
 
 **分工**：引擎提供**专业数据**（基金经理/持仓/评级/规模费率 + 净值/OHLC）+ 库化预计算（`ta` 算指标、
@@ -60,5 +60,5 @@ uv run money review 000001 / --all               # 历史战绩
 任何买卖决策与由此产生的盈亏，均由使用者自行承担。历史表现不代表未来收益。
 
 ## 文档
-- 设计：`docs/superpowers/specs/2026-07-08-money-quant-assistant-design.md`
-- 实现计划：`docs/superpowers/plans/2026-07-08-money-quant-assistant-p1.md`
+- 设计：`docs/superpowers/specs/2026-07-08-quantfox-assistant-design.md`
+- 实现计划：`docs/superpowers/plans/2026-07-08-quantfox-assistant-p1.md`

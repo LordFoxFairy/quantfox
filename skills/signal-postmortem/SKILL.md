@@ -14,10 +14,10 @@ description: >-
 ## 闭环步骤
 1. **确定范围**：单标的（给代码）或全局（`--all`）。
 2. **结算到期预测**：对相关标的先跑
-   `uv run money outcomes <标的> --prediction-id <id>`（或对每条到期预测结算），用真实净值算各周期收益。
+   `uv run quantfox outcomes <标的> --prediction-id <id>`（或对每条到期预测结算），用真实净值算各周期收益。
 3. **取战绩**：
-   - 单标的：`uv run money review <标的>`
-   - 全局：`uv run money review --all`（可 `--since <框架版本>` 看改框架后的样本外表现）
+   - 单标的：`uv run quantfox review <标的>`
+   - 全局：`uv run quantfox review --all`（可 `--since <框架版本>` 看改框架后的样本外表现）
 4. **分类每条（抄 signal-postmortem）**：
    - **TP 命中**：预测方向与真实收益同号（`hit=1`）。
    - **FP 打脸**：方向相反（`hit=0`）。

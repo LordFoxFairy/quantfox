@@ -1,7 +1,7 @@
 import pandas as pd
 
-from money.data.resolve import Asset
-from money.evidence import EvidenceCard, build_evidence
+from quantfox.data.resolve import Asset
+from quantfox.evidence import EvidenceCard, build_evidence
 
 
 def _series(vals):

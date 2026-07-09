@@ -1,6 +1,6 @@
 import pandas as pd
 
-from money.percentile import price_percentile
+from quantfox.percentile import price_percentile
 
 
 def _series(vals):

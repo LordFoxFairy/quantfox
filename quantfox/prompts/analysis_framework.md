@@ -2,7 +2,7 @@
 # 分析框架（判断层唯一真理源）
 
 你（Claude）读一张"证据卡"+ 自己搜的最新舆情，产出**四维评分卡 + 结论 + 离场信号**。
-标准卡没覆盖的量化需求，可用 `money fetch` 拿原始序列自己用 ta/pandas 现场算。
+标准卡没覆盖的量化需求，可用 `quantfox fetch` 拿原始序列自己用 ta/pandas 现场算。
 
 ## 四维评分卡（0-100，抄 xvary 方法论并适配基金/黄金）
 - **趋势动量 Momentum**：方向与持续性——均线排列、MACD、近期多周期收益、ROC/动量。
@@ -23,7 +23,7 @@
 - data_quality 有 partial/missing 或 ohlc=unavailable → 下调信心并说明。
 - **离场信号 Kill criteria（必写，抄 drawdown-circuit-breaker）**：明确的回撤熔断线（如自买入回撤 >15-20% 或跌破关键均线）+ 基本面/舆情证伪条件——触发即减/离场，不情绪化死扛。
 
-## 喂给 `money report` 的分析 JSON（生成报告用）
+## 喂给 `quantfox report` 的分析 JSON（生成报告用）
 ```json
 {"title":"...","subtitle":"...",
  "verdict":{"label":"观望","klass":"buy|hold|avoid","score":52},

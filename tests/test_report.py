@@ -1,7 +1,7 @@
 import pandas as pd
 
-from money.data.resolve import Asset
-from money.report import build_report_data, render_html
+from quantfox.data.resolve import Asset
+from quantfox.report import build_report_data, render_html
 
 
 def _fund(vals):

@@ -1,6 +1,6 @@
 import pandas as pd
 
-from money.indicators import compute_indicators
+from quantfox.indicators import compute_indicators
 
 
 def _series(vals):

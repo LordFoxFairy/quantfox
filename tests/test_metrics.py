@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 
-from money.metrics import compute_metrics
+from quantfox.metrics import compute_metrics
 
 
 def _df(vals):

@@ -1,4 +1,4 @@
-from money.prompts import framework_path, framework_version
+from quantfox.prompts import framework_path, framework_version
 
 
 def test_framework_exists_and_versioned():

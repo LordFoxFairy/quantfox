@@ -1,6 +1,6 @@
 import pandas as pd
 
-from money.storage import Ledger
+from quantfox.storage import Ledger
 
 
 def _prices(start_val, days):

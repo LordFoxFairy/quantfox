@@ -1,7 +1,7 @@
 import pandas as pd
 
-from money.data.fund_profile import load_profile
-from money.data.resolve import Asset
+from quantfox.data.fund_profile import load_profile
+from quantfox.data.resolve import Asset
 
 
 def _fetchers():

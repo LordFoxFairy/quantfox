@@ -10,7 +10,7 @@ description: >-
 
 # fund-analyze — 单标的深度分析（完整闭环）
 
-一次跑完：**取数 → 四维评分卡 → 深度解读 → 可视化报告 → 存档**。你（CC agent）是分析师，`money` 引擎是你的数据与工具后端。全程中文、透明说依据、结论先行。
+一次跑完：**取数 → 四维评分卡 → 深度解读 → 可视化报告 → 存档**。你（CC agent）是分析师，`quantfox` 引擎是你的数据与工具后端。全程中文、透明说依据、结论先行。
 
 ## 分工
 - 引擎给**专业数据 + 可复盘的预计算**（经理/持仓/评级/净值/OHLC/风险绩效/指标）。
@@ -20,18 +20,18 @@ description: >-
 ## 闭环步骤
 
 1. **定标的**：提取基金 6 位代码或识别"黄金"；含糊先问清。
-2. **看战绩校准**：`uv run money review <标的>`，历史准就自信、不准就收敛。
-3. **取证据卡**：`uv run money evidence <标的> --format json`（字段解读见 `references/evidence-card.md`，首次必读）。
+2. **看战绩校准**：`uv run quantfox review <标的>`，历史准就自信、不准就收敛。
+3. **取证据卡**：`uv run quantfox evidence <标的> --format json`（字段解读见 `references/evidence-card.md`，首次必读）。
 4. **专业地读**（不是只看指标）：**持仓**看它押注什么、**估值分位**看贵不贵、**风险绩效**看险不险、**经理/评级/规模费率**看靠不靠谱。
 5. **舆情自己搜自己判**：WebSearch/WebFetch 搜该标的（或其重仓行业、或黄金对应的实际利率/美元/央行购金）最新新闻政策，鉴别真伪时效与利好利空。
-6. **打四维评分卡 + 结论**：严格按 `money/prompts/analysis_framework.md`——趋势动量/稳定性/估值/基本面质量各 0-100，综合出 Verdict + 信心分 + **离场信号(Kill criteria)**。data_quality 缺失要下调信心并说明。
+6. **打四维评分卡 + 结论**：严格按 `quantfox/prompts/analysis_framework.md`——趋势动量/稳定性/估值/基本面质量各 0-100，综合出 Verdict + 信心分 + **离场信号(Kill criteria)**。data_quality 缺失要下调信心并说明。
 7. **生成可视化报告并打开**（闭环关键，必做）：
    - 把结论写成分析 JSON（结构见 analysis_framework.md 末尾）存到临时文件，如 `/tmp/analysis.json`。
-   - `uv run money report <标的> --analysis-file /tmp/analysis.json` → 打印出 HTML 路径。
+   - `uv run quantfox report <标的> --analysis-file /tmp/analysis.json` → 打印出 HTML 路径。
    - 打开：mac `open <路径>`；linux `xdg-open <路径>`；win `start <路径>`。失败就把绝对路径给用户让其手动打开。
 8. **存档预测**（复盘地基，别漏）：
    ```
-   uv run money log-signal --symbol <代码> --type <otc_fund|gold> \
+   uv run quantfox log-signal --symbol <代码> --type <otc_fund|gold> \
      --signal <档位> --signal-numeric <2..-2> --confidence <0-1> \
      --price-ref <证据卡最新价> --ts <今天YYYY-MM-DD> --horizons 5,20,60 \
      --rationale "<一句话理由>"

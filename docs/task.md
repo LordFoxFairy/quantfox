@@ -3,13 +3,13 @@
 ## money 量化分析助手
 
 - [x] **P1 / MVP**（2026-07-08 完成）：数据（场外基金+黄金）+ 技术指标 + 历史分位 + 舆情收集 + 证据卡 + 预测账本/复盘 + 分析框架 + CLI + Claude Skill。
-  - 设计：`docs/superpowers/specs/2026-07-08-money-quant-assistant-design.md`
-  - 计划：`docs/superpowers/plans/2026-07-08-money-quant-assistant-p1.md`
+  - 设计：`docs/superpowers/specs/2026-07-08-quantfox-assistant-design.md`
+  - 计划：`docs/superpowers/plans/2026-07-08-quantfox-assistant-p1.md`
   - 20 个单测全绿；黄金与基金 501018 真实端到端冒烟通过。
 
 - [x] **多-skill 架构 + 可视化报告**（2026-07-08）：
-  - 拆成各自闭环的 skill（挂 money-quant 插件）：`fund-analyze`（取数→四维评分卡+情景分析→可视化报告→存档）、`fund-compare`（多标的对比）+ **保留上游原名直接适配**的 `position-sizer`（仓位/定投）、`portfolio-manager`（组合体检+持仓穿透）、`signal-postmortem`（复盘）——均来自 tradermonty/claude-trading-skills，原名保留便于后续同步上游更新。
-  - `money report`：自包含 **ECharts HTML 报告**（K线/净值+回撤+持仓饼+四维评分卡），浏览器打开；已用 Playwright 真实渲染验证。
+  - 拆成各自闭环的 skill（挂 quantfox 插件）：`fund-analyze`（取数→四维评分卡+情景分析→可视化报告→存档）、`fund-compare`（多标的对比）+ **保留上游原名直接适配**的 `position-sizer`（仓位/定投）、`portfolio-manager`（组合体检+持仓穿透）、`signal-postmortem`（复盘）——均来自 tradermonty/claude-trading-skills，原名保留便于后续同步上游更新。
+  - `quantfox report`：自包含 **ECharts HTML 报告**（K线/净值+回撤+持仓饼+四维评分卡），浏览器打开；已用 Playwright 真实渲染验证。
   - 分析框架 v4：四维评分卡 + Verdict/信心 + Kill criteria（适配自 xvary）。
   - 评估并放弃 quantstats（英文通用、重依赖），主报告用 ECharts。
 
@@ -29,5 +29,5 @@
 
 ### 已知待办（推广前）
 - [ ] 推到 GitHub，把 README 里 `/plugin marketplace add thefoxfairy/money` 换成真实仓库地址。
-- [ ] 打包时确保 `money/prompts/*.md` 随 wheel 分发（当前 `uv run` 从源码读取正常）。
+- [ ] 打包时确保 `quantfox/prompts/*.md` 随 wheel 分发（当前 `uv run` 从源码读取正常）。
 - [ ] 基金"名称→代码"解析（当前仅支持 6 位代码或"黄金"）。

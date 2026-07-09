@@ -44,9 +44,9 @@ Python 负责**取数 + 算指标 + 收集舆情原始信息 + 存档复盘**，
 ### 3.2 两个共享契约
 
 1. **证据卡 schema**（`evidence_card`，pydantic + 版本号）：CLI 的产出、Skill 的唯一输入。
-2. **分析框架**（`money/prompts/analysis_framework.md`）：Claude "怎么判断"的**唯一真理源**——信号档位定义、必须说明采信/忽略了哪些舆情、必须给风险与置信度。SKILL.md **引用**它，不另写一套。
+2. **分析框架**（`quantfox/prompts/analysis_framework.md`）：Claude "怎么判断"的**唯一真理源**——信号档位定义、必须说明采信/忽略了哪些舆情、必须给风险与置信度。SKILL.md **引用**它，不另写一套。
 
-**为什么要两个契约**：今天是 Claude 在 CC 交互里当大脑（无需 API key、不花钱）。将来 P2 做无人值守每日定时/对外产品，需要 headless 跑法（`money analyze --llm`，走 Claude API）。届时它消费**同一张证据卡 + 同一份分析框架**——两个运行器，一个大脑规范，绝不分叉。今天把框架抽成独立文件，明天零重构接上。
+**为什么要两个契约**：今天是 Claude 在 CC 交互里当大脑（无需 API key、不花钱）。将来 P2 做无人值守每日定时/对外产品，需要 headless 跑法（`quantfox analyze --llm`，走 Claude API）。届时它消费**同一张证据卡 + 同一份分析框架**——两个运行器，一个大脑规范，绝不分叉。今天把框架抽成独立文件，明天零重构接上。
 
 ## 4. 组件（各自单一职责）
 
@@ -92,14 +92,14 @@ money/
 
 | 命令 | 作用 | 谁调 |
 |---|---|---|
-| `money evidence <代码/名> [--format json\|markdown]` | 产出完整证据卡（主命令） | Skill 主流程 |
-| `money fetch <代码/名>` | 只取原始净值/价格 | 调试/组合 |
-| `money indicators <代码/名>` | 只算技术指标 | 调试/组合 |
-| `money news <代码/名>` | 只收集舆情原始信息 | 调试/组合 |
-| `money log-signal --symbol X --signal buy --confidence 0.6 ...` | 把本次信号 + 置信度 + 当时证据快照存进预测账本 | Skill 出结论后 |
-| `money outcomes [--recompute]` | 为到期的历史预测算真实收益（可复算） | 定期/复盘前 |
-| `money review <代码/名>` | 单标的战绩：命中率、超额收益 | Skill 分析前先看战绩 |
-| `money review --all [--since <版本>]` | 全局战绩：IC、命中率、置信度校准、vs 基准、按大脑版本分组 | 评估/推广展示 |
+| `quantfox evidence <代码/名> [--format json\|markdown]` | 产出完整证据卡（主命令） | Skill 主流程 |
+| `quantfox fetch <代码/名>` | 只取原始净值/价格 | 调试/组合 |
+| `quantfox indicators <代码/名>` | 只算技术指标 | 调试/组合 |
+| `quantfox news <代码/名>` | 只收集舆情原始信息 | 调试/组合 |
+| `quantfox log-signal --symbol X --signal buy --confidence 0.6 ...` | 把本次信号 + 置信度 + 当时证据快照存进预测账本 | Skill 出结论后 |
+| `quantfox outcomes [--recompute]` | 为到期的历史预测算真实收益（可复算） | 定期/复盘前 |
+| `quantfox review <代码/名>` | 单标的战绩：命中率、超额收益 | Skill 分析前先看战绩 |
+| `quantfox review --all [--since <版本>]` | 全局战绩：IC、命中率、置信度校准、vs 基准、按大脑版本分组 | 评估/推广展示 |
 
 存储由 CLI 独占（确定、可测）；Skill 只负责"触发写入"与"读战绩来校准"。
 
@@ -238,8 +238,8 @@ outcome = `预测 + 之后真实净值` 的**纯函数**，可随时重算（因
 
 ## 14. 推广考量（结构上不挖坑）
 
-- CLI：`pip install` 一条命令装好，`money` 全局可用。
-- Skill：`.claude/skills/` 拷贝即用，仅依赖 `money` 命令存在。
+- CLI：`pip install` 一条命令装好，`quantfox` 全局可用。
+- Skill：`.claude/skills/` 拷贝即用，仅依赖 `quantfox` 命令存在。
 - 证据卡 schema + 分析框架为公开可读契约——透明可信。
 - 运营/发布/多用户放 P3，现在只保证可移植、无个人硬编码。
 

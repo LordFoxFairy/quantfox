@@ -1,6 +1,6 @@
 # 证据卡字段解读指南（schema v2）
 
-`money evidence <标的> --format json` 输出一张证据卡。下面逐块说明字段含义与**怎么读成多空/风险信号**。记住：这些是客观证据，最终判断是你的；标准卡没覆盖的，用 `money fetch` 拿原始序列自己算。
+`quantfox evidence <标的> --format json` 输出一张证据卡。下面逐块说明字段含义与**怎么读成多空/风险信号**。记住：这些是客观证据，最终判断是你的；标准卡没覆盖的，用 `quantfox fetch` 拿原始序列自己算。
 
 ## asset
 `symbol` / `name` / `type`（otc_fund=场外基金，gold=黄金）。

@@ -1,6 +1,6 @@
 import pytest
 
-from money.data.resolve import Asset, resolve
+from quantfox.data.resolve import Asset, resolve
 
 
 def test_gold_aliases():

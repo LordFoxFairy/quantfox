@@ -17,7 +17,7 @@ description: >-
 - 可投入金额（或占总资产比例）、风险偏好（保守/稳健/进取）、已有持仓（可选）。缺就先问。
 
 ## 闭环步骤
-1. **取风险数据**：`uv run money evidence <标的> --format json`，读 `metrics.ann_vol`、`metrics.max_drawdown`、`metrics.var95`、`percentile.price_pct`。
+1. **取风险数据**：`uv run quantfox evidence <标的> --format json`，读 `metrics.ann_vol`、`metrics.max_drawdown`、`metrics.var95`、`percentile.price_pct`。
 2. **定风险预算**（生存优先）：
    - 单一标的建议上限：保守 ≤10%、稳健 ≤20%、进取 ≤30% 的总资产；高波动（年化波动 >30%）或高分位（>0.8）再打 7 折。
    - 用最大回撤做压力测试：算"若重演历史最大回撤，这笔会亏多少钱"，让用户能承受再上。

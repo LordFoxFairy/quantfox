@@ -2,8 +2,8 @@ from pathlib import Path
 
 import pandas as pd
 
-from money.data.prices import load_prices
-from money.data.resolve import Asset
+from quantfox.data.prices import load_prices
+from quantfox.data.resolve import Asset
 
 FX = Path(__file__).parent / "fixtures"
 
