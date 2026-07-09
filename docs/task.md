@@ -13,9 +13,14 @@
   - 分析框架 v4：四维评分卡 + Verdict/信心 + Kill criteria（适配自 xvary）。
   - 评估并放弃 quantstats（英文通用、重依赖），主报告用 ECharts。
 
+- [x] **更名 quantfox**（2026-07-09）：包名/CLI/marketplace/全部引用统一改为 quantfox。
+- [x] **全市场选基 fund-screener**（2026-07-09）：`quantfox screen` 两级漏斗（长周期加权+一致性打分粗筛→精筛降温反追热）。
+- [x] **提准四机制**（2026-07-09）：弃权门槛 + 多周期一致 + 反方验证（框架 v6）+ 信心校准表（`storage.calibration()` / `quantfox calibration`）。
+- [x] **大盘估值锚**（2026-07-09）：`quantfox market-valuation`（全A股近10年估值分位），框架 v7 纳入判断。
+- [x] **报告离线化**（2026-07-09）：内联 echarts.min.js，报告为零外部依赖单文件，Playwright 验证渲染正常；并加"情景分析"板块。
+
 ### 后续（未开始）
-- [ ] **报告离线化**：ECharts 目前走 CDN；打包时内联 echarts.min.js 使 HTML 完全离线可转发。
-- [ ] **P2**：每日 `loop` 定时（headless `--llm`）、回测、指数估值分位接口。
+- [ ] **P2**：每日 `loop` 定时（headless `--llm`）、回测。
 - [ ] **P3**：正式对外发布。
 
 - [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。

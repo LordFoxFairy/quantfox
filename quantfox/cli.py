@@ -81,6 +81,14 @@ def profile(query: str):
     typer.echo(json.dumps(_profile_for(asset), ensure_ascii=False, indent=2))
 
 
+@app.command("market-valuation")
+def market_valuation():
+    """全 A 股整体估值分位（宏观贵不贵锚，供股票/指数基金参考）。"""
+    from .data.valuation import market_valuation as mv
+
+    typer.echo(json.dumps(mv(), ensure_ascii=False, indent=2))
+
+
 @app.command()
 def screen(type: str = typer.Option("股票型", help="基金类型：全部/股票型/混合型/债券型/指数型/QDII/FOF"),
            top: int = typer.Option(50, help="返回前 N 名"),

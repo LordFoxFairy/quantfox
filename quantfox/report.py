@@ -100,6 +100,7 @@ def build_report_data(asset: Asset, prices: pd.DataFrame, profile: dict, analysi
         "holdings": holdings,
         "metrics": cards,
         "commentary_html": analysis.get("commentary_html") or "<p>（无解读）</p>",
+        "scenarios_html": analysis.get("scenarios_html") or "",
         "risks_html": analysis.get("risks_html") or "（无）",
         "footer": analysis.get("footer") or "数据来源 akshare · 本报告基于公开数据，非投资建议，不保证盈利，决策与风险自负。",
     }

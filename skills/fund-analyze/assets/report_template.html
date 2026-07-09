@@ -54,6 +54,7 @@ __ECHARTS_SCRIPT__
   </div>
 
   <div class="card prose"><h2>深度解读</h2><div id="commentary"></div></div>
+  <div class="card prose" id="scenariosCard"><h2>情景分析（未来 12–18 月）</h2><div id="scenarios"></div></div>
   <div class="card"><h2>风险提示 / 离场信号</h2><div class="risk" id="risks"></div></div>
 
   <div class="foot" id="foot"></div>
@@ -111,6 +112,7 @@ if(R.holdings&&R.holdings.length){
 }else{$('holdingsCard').style.display='none';}
 
 $('commentary').innerHTML=R.commentary_html;
+if(R.scenarios_html){$('scenarios').innerHTML=R.scenarios_html;}else{$('scenariosCard').style.display='none';}
 $('risks').innerHTML=R.risks_html;
 $('foot').innerHTML=R.footer;
 window.addEventListener('resize',()=>{pc.resize();dd.resize();});

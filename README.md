@@ -1,64 +1,55 @@
-# money — 量化分析助手（CLI + Claude Skill）
+# quantfox — 场外基金与黄金的量化投研套件（Claude Code 技能）
 
-对**场外基金**与**黄金**取数、算技术指标、收集舆情，打包成一张"证据卡"；由 Claude（通过 Claude Code Skill）综合推理，给出**可解释的买入/观望/回避信号**，并把每次预测存档以便**复盘评估**。
+一套 **Claude Code 技能 + Python 引擎**，帮你把"支付宝能买的场外基金/黄金"做**专业、可解释、可复盘**的投研：
+从全市场选基、单只深度分析、生成可视化报告、到仓位定投、组合体检、历史复盘，全流程覆盖。
 
-不做黑箱预测，判断可解释、可追溯、可复盘。
+**诚实定位**：不做黑箱预测，不承诺"稳赚/90% 猜涨跌"（没人做得到）。追求的是 **"只在高把握时出手、出手命中率高、信心可校准、避坑判断稳"**——而且每次判断都存档、用真实涨跌诚实复盘。
 
-## 设计要点：一条缝 + 两个契约
-- **一条缝**：CLI（确定层）只产出客观数据的"证据卡"JSON，永不下结论；Skill（判断层 = Claude）只依赖证据卡 schema 做推理。
-- **两个契约**：证据卡 schema（`money/evidence.py`）+ 分析框架（`quantfox/prompts/analysis_framework.md`）。
-- **复盘飞轮**：每次预测 append-only 存档，到期用真实净值算命中率/IC/超额收益，Claude 分析前先看战绩自我校准。
+## 架构：引擎给数据，CC 当分析师
+- **引擎（quantfox）**：取专业数据（akshare：经理/持仓/评级/净值/OHLC/全市场榜单/大盘估值）+ 库化预计算（`ta` 指标、风险绩效）+ 复盘账本。**只出客观数据，永不下结论。**
+- **CC agent（技能 SOP 驱动）**：判断、舆情（自己 WebSearch）、评分、反方验证、出报告。
+- **提准闭环**：弃权门槛 + 多周期一致 + 反方验证（出手前过滤）→ 信心校准表（出手后复盘反哺）。
 
-## 作为 Claude Code Skill 安装（推荐，可发布分享）
-
-本仓库本身是一个 **Claude Code plugin marketplace**（清单在 `.claude-plugin/marketplace.json`），
-里面的 `quantfox` 插件带 `fund-analyze` 技能。别人这样装：
-
+## 安装（作为 Claude Code 插件市场，可发布分享）
+本仓库即一个 **plugin marketplace**（`.claude-plugin/marketplace.json`）。别人安装：
 ```
-/plugin marketplace add thefoxfairy/money      # 换成本仓库的 GitHub 地址
+/plugin marketplace add thefoxfairy/money      # 换成本仓库真实 GitHub 地址
 /plugin install quantfox@quantfox
 ```
+本地自测：`/plugin marketplace add .` 再 install。
+首次装引擎依赖：`bash skills/fund-analyze/scripts/setup.sh`（或 `uv sync`）。
 
-本地开发/自测（在仓库根目录）：
+## 6 个技能（各自内部闭环，共用引擎）
+| 技能 | 干什么 | 出处 |
+|---|---|---|
+| **fund-analyze** | 单只深度分析：四维评分卡+情景分析+反方验证 → **离线可视化报告** → 存档 | 原创（评分卡抄 xvary） |
+| **fund-screener** | 全市场上万只两级漏斗选基，反追热 | 原创 |
+| **fund-compare** | 多只横向对比选优 | 原创 |
+| **position-sizer** | 仓位/定投/加减仓熔断纪律 | 适配 tradermonty 同名 |
+| **portfolio-manager** | 组合体检+持仓穿透集中度+再平衡 | 适配 tradermonty 同名 |
+| **signal-postmortem** | 复盘：命中率/IC/**信心校准表** | 适配 tradermonty 同名 |
 
-```
-/plugin marketplace add .
-/plugin install quantfox@quantfox
-```
+日常用法：在 Claude Code 里直接说 **"帮我全市场选10只稳的股票基金"**、**"分析下 000001 能不能买"**、**"我这几只基金组合体检一下"**，对应技能自动触发、跑完整闭环、必要时打开可视化报告。
 
-首次使用前，安装引擎依赖：`bash skills/fund-analyze/scripts/setup.sh`。
-装好后，直接对话："帮我看看黄金能不能买"。
-
-## 手动安装引擎（不走 marketplace 时）
+## 引擎 CLI（供技能调用，也可单跑调试）
 ```bash
-uv sync
+uv run quantfox screen --type 全部 --top 100        # 全市场粗筛候选池
+uv run quantfox evidence 000001 --format markdown   # 完整证据卡
+uv run quantfox market-valuation                     # 全A股大盘估值分位（贵不贵）
+uv run quantfox report 000001 --analysis-file a.json # 生成离线可视化 HTML 报告
+uv run quantfox metrics|indicators|profile|fetch <标的>
+uv run quantfox log-signal ... / outcomes / review / calibration   # 存档与复盘
 ```
-
-## CLI 用法
-```bash
-uv run quantfox evidence 000001 --format markdown  # 完整证据卡（基本面+风险绩效+估值+指标）
-uv run quantfox profile 000001                      # 基金基本面：经理/持仓/评级
-uv run quantfox metrics 000001                      # 风险绩效：夏普/索提诺/卡玛/VaR/回撤…
-uv run quantfox indicators gold                     # 技术指标（辅助）
-uv run quantfox fetch 000001                        # 原始净值/价格序列
-uv run quantfox review 000001 / --all               # 历史战绩
-```
-
-**分工**：引擎提供**专业数据**（基金经理/持仓/评级/规模费率 + 净值/OHLC）+ 库化预计算（`ta` 算指标、
-风险绩效）+ 复盘存档；**舆情/宏观由 CC agent 自己用 WebSearch 搜并鉴别**（比固定数据源更新更准）；
-技术指标只是**辅助**。需要最高最低价的 KDJ/ATR/CCI/W%R/ADX 仅黄金可算。
-
-## Skill 用法（推荐日常入口）
-在 Claude Code 里直接说：**"帮我分析下 501018"** 或 **"看看黄金现在能不能买"**。
-`fund-analyze` 技能会自动取证据卡、补最新舆情、按分析框架推理、给出信号并存档。
 
 ## 数据源
 [akshare](https://akshare.akfun.com/)，免费无需 key。接口清单见 `docs/akshare-interfaces.md`。
+可视化报告用内联的 [ECharts](https://echarts.apache.org)（单文件、离线可看、可转发）。
 
 ## ⚠️ 免责声明
 本工具基于公开数据提供**理性参考**，**不是投资建议，不保证盈利**。基金/黄金有风险，
 任何买卖决策与由此产生的盈亏，均由使用者自行承担。历史表现不代表未来收益。
 
 ## 文档
-- 设计：`docs/superpowers/specs/2026-07-08-quantfox-assistant-design.md`
-- 实现计划：`docs/superpowers/plans/2026-07-08-quantfox-assistant-p1.md`
+- 设计：`docs/superpowers/specs/2026-07-08-money-quant-assistant-design.md`
+- 实现计划：`docs/superpowers/plans/2026-07-08-money-quant-assistant-p1.md`
+- 任务状态：`docs/task.md`
