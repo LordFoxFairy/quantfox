@@ -37,6 +37,8 @@ def test_fund_report_data_uses_nav_and_holdings():
     assert len(data["metrics"]) >= 6
     html = render_html(data)
     assert "__REPORT_JSON__" not in html  # 占位符已替换
+    assert "__ECHARTS_SCRIPT__" not in html
+    assert "cdn.jsdelivr" not in html  # 已内联，无外部依赖（离线可看）
     assert "echarts" in html
 
 

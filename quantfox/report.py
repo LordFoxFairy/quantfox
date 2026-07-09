@@ -14,8 +14,18 @@ from .data.resolve import Asset, resolve
 from .metrics import compute_metrics
 from .percentile import price_percentile
 
-_TEMPLATE = Path(__file__).resolve().parent.parent / "skills" / "fund-analyze" / "assets" / "report_template.html"
+_ASSETS = Path(__file__).resolve().parent.parent / "skills" / "fund-analyze" / "assets"
+_TEMPLATE = _ASSETS / "report_template.html"
+_ECHARTS = _ASSETS / "echarts.min.js"
+_CDN = '<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>'
 _SHOW = 250  # 图表展示最近 N 个交易日
+
+
+def _echarts_script() -> str:
+    """有本地 echarts 就内联（单文件离线可转发）；否则回退 CDN。"""
+    if _ECHARTS.exists():
+        return "<script>" + _ECHARTS.read_text(encoding="utf-8") + "</script>"
+    return _CDN
 
 
 def _tone(x, good_positive=True):
@@ -97,7 +107,11 @@ def build_report_data(asset: Asset, prices: pd.DataFrame, profile: dict, analysi
 
 def render_html(data: dict) -> str:
     tpl = _TEMPLATE.read_text(encoding="utf-8")
-    return tpl.replace("__REPORT_JSON__", json.dumps(data, ensure_ascii=False)).replace("__TITLE__", data["title"])
+    return (
+        tpl.replace("__ECHARTS_SCRIPT__", _echarts_script())
+        .replace("__REPORT_JSON__", json.dumps(data, ensure_ascii=False))
+        .replace("__TITLE__", data["title"])
+    )
 
 
 def build_report(query: str, analysis: dict | None = None) -> str:
