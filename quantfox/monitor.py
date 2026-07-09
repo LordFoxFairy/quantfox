@@ -14,6 +14,34 @@ VALUATION_LOW = 0.35       # 估值低位线（买点线索）
 PULLBACK_FROM_HIGH = -0.20  # 从52周高点回落多少算"回调到位"
 
 
+def format_digest(watching: list, holding: list) -> str:
+    """把巡检结果排成一封摘要（报平安也生成）——供定时邮件用，稳定一致。"""
+    buy = [w for w in watching if w.get("status") == "可关注买点"]
+    exit_ = [h for h in holding if h.get("status") == "需离场"]
+    warn = [h for h in holding if h.get("status") == "留意"]
+    lines = []
+    if buy or exit_ or warn:
+        lines.append(f"⚠️ quantfox 巡检：{len(buy)} 个买点 · {len(exit_)} 个需离场 · {len(warn)} 个留意")
+    else:
+        lines.append("✅ quantfox 巡检：持仓一切正常、观测暂无买点，继续持有，无需动作。")
+
+    if watching:
+        lines.append("\n【观测中·找买点】")
+        for w in watching:
+            sig = "、".join(w.get("entry_signals") or []) or "等待更好买点"
+            lines.append(f"· {w['symbol']}：{w.get('status')}（{sig}）")
+    if holding:
+        lines.append("\n【持有中·看离场】")
+        for h in holding:
+            ret = h.get("return_since_entry")
+            rets = f"{ret * 100:+.1f}%" if ret is not None else "—"
+            note = "、".join(h.get("exit_flags") or h.get("early_warnings") or []) or "正常"
+            lines.append(f"· {h['symbol']}：浮盈亏 {rets}，{h.get('status')}（{note}）")
+
+    lines.append("\n—— 非投资建议；买卖请自行在支付宝手动操作，决策与风险自负。")
+    return "\n".join(lines)
+
+
 def check_candidate(prices: pd.DataFrame, target_price: float = None,
                     asset_type: str = "otc_fund") -> dict:
     """观测态：找买点线索。只给客观线索，是否真买结合 fund-analyze 深析。"""

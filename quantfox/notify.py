@@ -52,11 +52,15 @@ def build_message(to: str, subject: str, body: str, from_addr: str,
     return msg
 
 
-def send_email(to: str, subject: str, body: str, attach: str = None,
+def send_email(to: str = None, subject: str = "", body: str = "", attach: str = None,
                html: bool = False, config: dict = None) -> dict:
     cfg = config or load_email_config()
     if not cfg:
         raise RuntimeError("邮箱未配置：先运行 quantfox email config ...")
+    # 收件人：显式 > 配置里的默认收件人 notify_to。绝不从别处猜。
+    to = to or cfg.get("notify_to")
+    if not to:
+        raise RuntimeError("未指定收件人：给 --to，或先 quantfox email config --to <邮箱> 设默认收件人")
     msg = build_message(to, subject, body, cfg["from_addr"], attach, html)
     ctx = ssl.create_default_context()
     if cfg.get("use_ssl", True):

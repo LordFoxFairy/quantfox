@@ -121,3 +121,20 @@ def build_report(query: str, analysis: dict | None = None) -> str:
     profile = load_profile(asset)
     data = build_report_data(asset, prices, profile, analysis or {})
     return render_html(data)
+
+
+def html_to_pdf(html_path: Path, pdf_path: Path) -> Path:
+    """无头浏览器把 ECharts HTML 渲染成静态 PDF——邮件/QQ 里能正常看（不依赖 JS）。"""
+    try:
+        from playwright.sync_api import sync_playwright
+    except ImportError as e:
+        raise RuntimeError("需要 playwright：uv tool install '.[pdf]' 后 playwright install chromium") from e
+    with sync_playwright() as p:
+        browser = p.chromium.launch()
+        page = browser.new_page()
+        page.goto(Path(html_path).resolve().as_uri())
+        page.wait_for_timeout(1800)  # 等 ECharts 画完
+        page.pdf(path=str(pdf_path), format="A4", print_background=True,
+                 margin={"top": "10mm", "bottom": "10mm", "left": "8mm", "right": "8mm"})
+        browser.close()
+    return pdf_path

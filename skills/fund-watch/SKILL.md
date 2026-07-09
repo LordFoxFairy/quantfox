@@ -37,11 +37,11 @@ description: >-
 5. **诚实结尾**：非投资建议；提示"追涨杀跌、频繁看盘是中长期最大的敌人"。
 
 ## 关于定时 + 邮件推送（都是用户的选择，我不擅自建）
-- **定时前必须先配好邮箱**（否则定时跑了提醒也发不出去）：先 `quantfox email show` 确认已配置、`quantfox email test --to 你自己` 验证能收到；没配就引导用户先 `quantfox email config ...`。邮箱配置统一存全局 json（`~/.quantfox/email.json` 或 `$QUANTFOX_HOME/email.json`，权限 600、密码不打印），方便管理。
-- 想自动：邮箱就绪后，建议 `/schedule` 挂**周频**（中长期不必日频）调用本技能；节奏由用户定。
-- **邮件推送**：在**有买点或触发离场**时把摘要邮件发给他：
-  `quantfox email send --to <邮箱> --subject "quantfox 提醒：X 出现买点/需离场" --body "<摘要>"`。
-  没触发就别发，别打扰。也可把 fund-analyze 的报告 HTML 作附件发出。
+- **定时前必须先配好邮箱**：`quantfox email show` 确认已配（含 `notify_to` 默认收件人）、`quantfox email test` 验证能收到；没配就引导 `quantfox email config --to <你的邮箱> ...`。配置存全局 json（`~/.quantfox/email.json`，600、密码不打印）。
+- **收件人绝不自己猜**：一律用配置里的 `notify_to`（`email send` 不带 `--to` 就是发给它）。**别用系统上下文里的其它邮箱！**
+- 想自动：`/schedule` 挂**周频**调用本技能。
+- **定时巡检 = 每次都发一封摘要**（报平安也发，让用户安心）：`quantfox watch digest` 生成摘要 → `quantfox email send --subject "quantfox 周报" --body "<digest>"`（有事时标题写"⚠️ X 需关注"）。
+- **随口"复查"（对话里问）= 只在聊天里显示，不发邮件**，避免重复打扰。
 - 不想：随口说"复查下"即可按需触发。**绝不**替用户偷偷创建定时任务或发邮件。
 
 ## 盘中异动预警（非盯盘，仅交易时段）

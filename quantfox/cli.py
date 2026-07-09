@@ -185,7 +185,8 @@ def screen(type: str = typer.Option("股票型", help="基金类型：全部/股
 @app.command()
 def report(query: str,
            analysis_file: str = typer.Option(None, help="CC 判断的 JSON（verdict/dimensions/commentary_html/risks_html）"),
-           out: str = typer.Option(None, help="输出 HTML 路径")):
+           out: str = typer.Option(None, help="输出 HTML 路径"),
+           pdf: bool = typer.Option(False, "--pdf", help="同时导出 PDF（邮件/QQ 邮箱能看，静态图不依赖 JS）")):
     """渲染自包含可视化 HTML 报告（ECharts K线+指标+回撤+持仓）。打印文件路径。"""
     from .report import build_report
 
@@ -201,7 +202,14 @@ def report(query: str,
         d.mkdir(parents=True, exist_ok=True)
         path = d / f"{asset.symbol}_{_dt.date.today().isoformat()}.html"
     path.write_text(html, encoding="utf-8")
-    typer.echo(str(path))
+    result = {"html": str(path)}
+    if pdf:
+        from .report import html_to_pdf
+
+        pdf_path = path.with_suffix(".pdf")
+        html_to_pdf(path, pdf_path)
+        result["pdf"] = str(pdf_path)  # 邮件附这个，QQ 邮箱能看
+    typer.echo(json.dumps(result, ensure_ascii=False))
 
 
 @app.command("log-signal")
@@ -247,13 +255,16 @@ def email_config(smtp_host: str = typer.Option(..., help="如 smtp.gmail.com / s
                  username: str = typer.Option(..., help="你的邮箱账号"),
                  password: str = typer.Option(..., help="授权码/应用专用密码（不是登录密码）"),
                  from_addr: str = typer.Option(..., help="发件邮箱"),
+                 to: str = typer.Option(None, help="默认收件邮箱（提醒/报告发给谁；不填则默认发给自己）"),
                  use_ssl: bool = typer.Option(True, help="SSL(465) 用 True；STARTTLS(587) 用 False")):
     """配置你自己的发件邮箱（存本地、不进仓库、权限600）。"""
     from .notify import save_email_config
 
     p = save_email_config({"smtp_host": smtp_host, "smtp_port": smtp_port, "username": username,
-                           "password": password, "from_addr": from_addr, "use_ssl": use_ssl})
-    typer.echo(json.dumps({"saved": str(p), "note": "密码仅存本地，未打印"}, ensure_ascii=False))
+                           "password": password, "from_addr": from_addr,
+                           "notify_to": to or from_addr, "use_ssl": use_ssl})
+    typer.echo(json.dumps({"saved": str(p), "notify_to": to or from_addr,
+                           "note": "密码仅存本地，未打印"}, ensure_ascii=False))
 
 
 @email_app.command("show")
@@ -272,13 +283,13 @@ def email_show():
 
 
 @email_app.command("send")
-def email_send(to: str = typer.Option(..., help="收件邮箱"),
+def email_send(to: str = typer.Option(None, help="收件邮箱（不填=用配置里的默认收件人）"),
                subject: str = typer.Option(..., help="标题"),
                body: str = typer.Option(None, help="正文（或用 --body-file）"),
-               body_file: str = typer.Option(None, help="正文文件（如报告 HTML）"),
-               attach: str = typer.Option(None, help="附件路径（如报告 HTML）"),
+               body_file: str = typer.Option(None, help="正文文件"),
+               attach: str = typer.Option(None, help="附件路径（如报告 PDF）"),
                html: bool = typer.Option(False, help="正文按 HTML 发送")):
-    """发送邮件。"""
+    """发送邮件（收件人默认用配置里的 notify_to，绝不从别处猜）。"""
     from .notify import send_email
 
     text = Path(body_file).read_text(encoding="utf-8") if body_file else (body or "")
@@ -287,7 +298,7 @@ def email_send(to: str = typer.Option(..., help="收件邮箱"),
 
 
 @email_app.command("test")
-def email_test(to: str = typer.Option(..., help="收件邮箱")):
+def email_test(to: str = typer.Option(None, help="收件邮箱（不填=默认收件人）")):
     """发一封测试邮件，验证配置。"""
     from .notify import send_email
 
@@ -377,9 +388,7 @@ def watch_remove(symbol: str):
     typer.echo(json.dumps({"removed": n}, ensure_ascii=False))
 
 
-@watch_app.command("check")
-def watch_check():
-    """快扫清单：观测的找买点、持有的看离场，分组输出。"""
+def _gather_watch():
     from .monitor import check_candidate, check_holding
 
     led = _ledger()
@@ -395,13 +404,31 @@ def watch_check():
         except Exception as e:  # noqa
             r = {"status": "取价失败", "error": str(e)}
         (holding if h["status"] == "holding" else watching).append({"symbol": h["symbol"], **r})
-    buy_now = [o["symbol"] for o in watching if o.get("status") == "可关注买点"]
-    need_exit = [o["symbol"] for o in holding if o.get("status") == "需离场"]
-    early_warn = [o["symbol"] for o in holding if o.get("status") == "留意"]
+    return watching, holding
+
+
+@watch_app.command("check")
+def watch_check():
+    """快扫清单：观测的找买点、持有的看离场，分组输出。"""
+    watching, holding = _gather_watch()
     typer.echo(json.dumps({
-        "watching": {"n": len(watching), "buy_opportunity": buy_now, "items": watching},
-        "holding": {"n": len(holding), "need_exit": need_exit, "early_warning": early_warn, "items": holding},
+        "watching": {"n": len(watching),
+                     "buy_opportunity": [o["symbol"] for o in watching if o.get("status") == "可关注买点"],
+                     "items": watching},
+        "holding": {"n": len(holding),
+                    "need_exit": [o["symbol"] for o in holding if o.get("status") == "需离场"],
+                    "early_warning": [o["symbol"] for o in holding if o.get("status") == "留意"],
+                    "items": holding},
     }, ensure_ascii=False, indent=2))
+
+
+@watch_app.command("digest")
+def watch_digest():
+    """生成一封巡检摘要文本（报平安也生成）——供定时邮件用。"""
+    from .monitor import format_digest
+
+    watching, holding = _gather_watch()
+    typer.echo(format_digest(watching, holding))
 
 
 if __name__ == "__main__":

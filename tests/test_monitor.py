@@ -1,7 +1,24 @@
 import pandas as pd
 
-from quantfox.monitor import check_candidate, check_holding
+from quantfox.monitor import check_candidate, check_holding, format_digest
 from quantfox.storage import Ledger
+
+
+def test_digest_all_normal_reports_peace():
+    txt = format_digest([], [{"symbol": "000001", "status": "正常持有",
+                              "return_since_entry": 0.05, "exit_flags": [], "early_warnings": []}])
+    assert "一切正常" in txt
+    assert "000001" in txt and "+5.0%" in txt
+    assert "非投资建议" in txt
+
+
+def test_digest_with_triggers():
+    watching = [{"symbol": "161725", "status": "可关注买点", "entry_signals": ["估值低位"]}]
+    holding = [{"symbol": "000001", "status": "需离场", "return_since_entry": -0.18,
+                "exit_flags": ["浮亏 -18%"], "early_warnings": []}]
+    txt = format_digest(watching, holding)
+    assert "1 个买点" in txt and "1 个需离场" in txt
+    assert "-18.0%" in txt
 
 
 def _prices(vals):

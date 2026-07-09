@@ -13,6 +13,9 @@ fi
 echo "📦 安装 quantfox 引擎为全局命令（uv tool install）..."
 uv tool install --force "$ROOT"
 
+echo "🌐 安装 chromium（报告转 PDF 用，约 100MB，一次性；失败不影响其它功能）..."
+(cd "$ROOT" && uv run playwright install chromium) || echo "⚠️ chromium 装失败，PDF 报告暂不可用，其余功能正常"
+
 echo "✅ 完成。任何目录都能用了，试试："
 echo "   quantfox evidence gold --format markdown"
 echo "（若提示找不到命令，把 ~/.local/bin 加进 PATH，或跑 uv tool update-shell）"

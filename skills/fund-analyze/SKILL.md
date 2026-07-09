@@ -30,8 +30,9 @@ description: >-
    - **反方验证**：下结论前先当"魔鬼代言人"专门反驳自己，列最强反面证据；驳不倒才保留，否则降档/降信心。把这轮攻防写进解读。宁可弃权，不硬猜。
 7. **生成可视化报告并打开**（闭环关键，必做）：
    - 把结论写成分析 JSON（结构见 analysis_framework.md 末尾）存到临时文件，如 `/tmp/analysis.json`。
-   - `quantfox report <标的> --analysis-file /tmp/analysis.json` → 打印出 HTML 路径。
-   - 打开：mac `open <路径>`；linux `xdg-open <路径>`；win `start <路径>`。失败就把绝对路径给用户让其手动打开。
+   - `quantfox report <标的> --analysis-file /tmp/analysis.json --pdf` → 输出 JSON（含 html/pdf 路径）。
+   - 本机看：打开 HTML（mac `open`/linux `xdg-open`/win `start`）。
+   - **发邮件给用户：附 PDF（`--pdf` 生成的），不要附 HTML**（QQ 等邮箱不跑 JS，HTML 会白屏）：`quantfox email send --subject "…分析报告" --attach <pdf路径>`。收件人默认用配置的 notify_to，**绝不猜别的邮箱**。
 8. **存档预测**（复盘地基，别漏）：
    ```
    # 先把第3步的证据卡 JSON 存文件（如 /tmp/ev.json），冻结"当时为什么这么判"，供日后复盘可信
