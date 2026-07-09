@@ -118,6 +118,15 @@ def profile(query: str):
     typer.echo(json.dumps(_profile_for(asset), ensure_ascii=False, indent=2))
 
 
+@app.command()
+def forecast(query: str):
+    """前瞻收益分布（非点预测）：持有1/3/6/12月的正收益概率/中位/p10-p90 + 估值条件化。"""
+    from .forecast import forecast as run_fc
+
+    asset = resolve(query)
+    typer.echo(json.dumps(run_fc(_prices_for(asset)), ensure_ascii=False, indent=2))
+
+
 @app.command("market-valuation")
 def market_valuation():
     """全 A 股整体估值分位（宏观贵不贵锚，供股票/指数基金参考）。"""

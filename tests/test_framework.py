@@ -8,4 +8,4 @@ def test_framework_exists_and_versioned():
     assert "信号档位" in text
     assert "风险" in text
     assert "保本优先" in text
-    assert framework_version() == "12"
+    assert framework_version() == "13"
