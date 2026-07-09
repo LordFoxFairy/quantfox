@@ -42,9 +42,30 @@ class Ledger:
               gross_return REAL, cost REAL, realized_return REAL, base_up REAL, hit INTEGER,
               PRIMARY KEY (prediction_id, horizon)
             );
+            CREATE TABLE IF NOT EXISTS holdings (
+              symbol TEXT PRIMARY KEY, type TEXT,
+              entry_price REAL, entry_date TEXT, note TEXT
+            );
             """
         )
         c.commit()
+
+    # --- 持仓清单（供 fund-watch 每日监控）---
+    def add_holding(self, symbol, type, entry_price, entry_date, note=""):
+        c = self._conn()
+        c.execute("INSERT OR REPLACE INTO holdings VALUES (?,?,?,?,?)",
+                  (symbol, type, entry_price, entry_date, note))
+        c.commit()
+
+    def list_holdings(self):
+        c = self._conn()
+        return [dict(r) for r in c.execute("SELECT * FROM holdings ORDER BY entry_date").fetchall()]
+
+    def remove_holding(self, symbol):
+        c = self._conn()
+        cur = c.execute("DELETE FROM holdings WHERE symbol=?", (symbol,))
+        c.commit()
+        return cur.rowcount
 
     def _conn(self):
         c = sqlite3.connect(self.db_path)

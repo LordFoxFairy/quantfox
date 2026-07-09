@@ -7,4 +7,4 @@ def test_framework_exists_and_versioned():
     text = p.read_text(encoding="utf-8")
     assert "信号档位" in text
     assert "风险" in text
-    assert framework_version() == "9"
+    assert framework_version() == "10"

@@ -141,7 +141,7 @@ def log_signal(
     price_ref: float = typer.Option(..., help="证据卡最新价"),
     ts: str = typer.Option(..., help="预测日期 YYYY-MM-DD"),
     type: str = typer.Option("otc_fund", help="otc_fund 或 gold"),
-    horizons: str = typer.Option("5,20,60", help="评估周期（交易日），逗号分隔"),
+    horizons: str = typer.Option("20,60,120,250", help="评估周期（交易日）；基金中长期，默认 1月/3月/半年/1年"),
     rationale: str = typer.Option("", help="一句话理由"),
     evidence_json: str = typer.Option("{}", help="证据卡 JSON 快照（内联）"),
     evidence_file: str = typer.Option(None, help="证据卡 JSON 文件路径（优先，用于冻结当时证据）"),
@@ -204,6 +204,52 @@ def calibration(query: str = typer.Argument(None), all: bool = typer.Option(Fals
     led = _ledger()
     symbol = None if (all or query is None) else resolve(query).symbol
     typer.echo(json.dumps(led.calibration(symbol=symbol), ensure_ascii=False, indent=2))
+
+
+watch_app = typer.Typer(help="持仓监控清单（opt-in：你自己把要看的基金加进来）")
+app.add_typer(watch_app, name="watch")
+
+
+@watch_app.command("add")
+def watch_add(symbol: str, entry_price: float, entry_date: str,
+              note: str = typer.Option("", help="备注")):
+    """把一只持仓加入监控清单。"""
+    asset = resolve(symbol)
+    _ledger().add_holding(asset.symbol, asset.type, entry_price, entry_date, note)
+    typer.echo(json.dumps({"added": asset.symbol}, ensure_ascii=False))
+
+
+@watch_app.command("list")
+def watch_list():
+    """列出监控清单。"""
+    typer.echo(json.dumps(_ledger().list_holdings(), ensure_ascii=False, indent=2))
+
+
+@watch_app.command("remove")
+def watch_remove(symbol: str):
+    """从监控清单移除。"""
+    n = _ledger().remove_holding(resolve(symbol).symbol)
+    typer.echo(json.dumps({"removed": n}, ensure_ascii=False))
+
+
+@watch_app.command("check")
+def watch_check():
+    """快扫所有持仓，标出"需关注"的（触发熔断/回撤/跌破MA60/估值高位）。"""
+    from .monitor import check_holding
+
+    led = _ledger()
+    out = []
+    for h in led.list_holdings():
+        asset = resolve(h["symbol"])
+        try:
+            prices = _prices_for(asset)
+            r = check_holding(prices, h["entry_price"], h["entry_date"], asset.type)
+        except Exception as e:  # noqa
+            r = {"status": "取价失败", "error": str(e)}
+        out.append({"symbol": h["symbol"], "name": None, **r})
+    need = [o["symbol"] for o in out if o.get("status") == "需关注"]
+    typer.echo(json.dumps({"n": len(out), "need_attention": need, "holdings": out},
+                          ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

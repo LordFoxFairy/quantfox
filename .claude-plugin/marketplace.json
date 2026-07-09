@@ -18,6 +18,7 @@
         "./skills/fund-analyze",
         "./skills/fund-screener",
         "./skills/fund-compare",
+        "./skills/fund-watch",
         "./skills/position-sizer",
         "./skills/portfolio-manager",
         "./skills/signal-postmortem"

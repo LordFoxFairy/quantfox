@@ -38,7 +38,7 @@ description: >-
    uv run quantfox evidence <标的> --format json > /tmp/ev.json
    uv run quantfox log-signal --symbol <代码> --type <otc_fund|gold> \
      --signal <档位> --signal-numeric <2..-2> --confidence <0-1> \
-     --price-ref <证据卡最新价> --ts <今天YYYY-MM-DD> --horizons 5,20,60 \
+     --price-ref <证据卡最新价> --ts <今天YYYY-MM-DD> --horizons 20,60,120,250 \
      --rationale "<一句话理由>" --evidence-file /tmp/ev.json
    ```
 9. **对话里也给结论**：结论先行（信号+信心）+ 四维小结 + 一句风险 + 报告已打开提示 + 免责。
