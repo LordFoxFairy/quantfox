@@ -163,5 +163,13 @@ def review(
         typer.echo(json.dumps(led.review(symbol=asset.symbol, since_version=since), ensure_ascii=False, indent=2))
 
 
+@app.command()
+def calibration(query: str = typer.Argument(None), all: bool = typer.Option(False, "--all")):
+    """信心校准表：按当时信心分桶看真实命中率（说 80% 把握时是否真 80% 对）。"""
+    led = _ledger()
+    symbol = None if (all or query is None) else resolve(query).symbol
+    typer.echo(json.dumps(led.calibration(symbol=symbol), ensure_ascii=False, indent=2))
+
+
 if __name__ == "__main__":
     app()

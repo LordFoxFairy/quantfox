@@ -25,6 +25,21 @@ def test_log_and_track(tmp_path):
     assert 0.0 <= tr["hit_rate"] <= 1.0
 
 
+def test_calibration_buckets_by_confidence(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    # 高信心(0.9) 买入，价格上涨 → 命中
+    pid = led.log_signal(
+        symbol="A", type="otc_fund", signal="买", signal_numeric=1, confidence=0.9,
+        horizons=[5], price_ref=100.0, evidence_json="{}", rationale="",
+        framework_version="1", schema_version="1.0", ts="2023-01-01")
+    led.compute_outcomes(pid, _prices(100.0, 40))
+    cal = led.calibration("A")
+    hi = [b for b in cal["buckets"] if b["range"] == "0.85-1.00"][0]
+    assert hi["n"] == 1
+    assert hi["hit_rate"] == 1.0
+    assert hi["gap"] == round(0.9 - 1.0, 3)  # 略偏保守
+
+
 def test_append_only_no_overwrite(tmp_path):
     led = Ledger(tmp_path / "t.db")
     a = led.log_signal(

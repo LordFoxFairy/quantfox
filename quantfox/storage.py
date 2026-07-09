@@ -121,3 +121,30 @@ class Ledger:
             "hit_rate": sum(hits) / len(hits),
             "note": "样本量小，仅供参考" if len(rows) < 20 else "ok",
         }
+
+    def calibration(self, symbol=None):
+        """按当时信心分桶，看真实命中率——衡量"说 80% 把握时是否真 80% 对"。"""
+        c = self._conn()
+        q = ("SELECT p.confidence AS conf, o.hit AS hit FROM outcomes o "
+             "JOIN predictions p ON p.id=o.prediction_id WHERE p.confidence IS NOT NULL")
+        args = []
+        if symbol:
+            q += " AND p.symbol=?"
+            args.append(symbol)
+        rows = c.execute(q, args).fetchall()
+        edges = [(0.0, 0.5), (0.5, 0.7), (0.7, 0.85), (0.85, 1.01)]
+        buckets = []
+        for lo, hi in edges:
+            sub = [r for r in rows if lo <= r["conf"] < hi]
+            label = f"{lo:.2f}-{min(hi, 1.0):.2f}"
+            if not sub:
+                buckets.append({"range": label, "n": 0, "avg_confidence": None,
+                                "hit_rate": None, "gap": None})
+                continue
+            hr = sum(r["hit"] for r in sub) / len(sub)
+            ac = sum(r["conf"] for r in sub) / len(sub)
+            buckets.append({"range": label, "n": len(sub),
+                            "avg_confidence": round(ac, 3), "hit_rate": round(hr, 3),
+                            "gap": round(ac - hr, 3)})
+        return {"n": len(rows), "buckets": buckets,
+                "note": "gap>0=过度自信(说得比做得好)，<0=过度保守；理想≈0。样本<20 仅供参考"}
