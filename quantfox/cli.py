@@ -99,8 +99,15 @@ def screen(type: str = typer.Option("股票型", help="基金类型：全部/股
 
     df = load_universe(type)
     result = run_screen(df, top=top, consistent_only=consistent)
-    typer.echo(json.dumps({"type": type, "universe_size": len(df), "returned": len(result),
-                           "candidates": result}, ensure_ascii=False, indent=2))
+    typer.echo(json.dumps({
+        "type": type, "universe_size": len(df), "returned": len(result),
+        "caveats": [
+            "幸存者偏差：榜单只含仍存续的基金，清盘/合并的已消失，Top 全是幸存者，历史收益天然偏高。",
+            "这是按历史收益排的候选池，不是推荐；须再精筛降温（估值/回撤/集中度/追热）。",
+            "过去收益≠未来收益。",
+        ],
+        "candidates": result,
+    }, ensure_ascii=False, indent=2))
 
 
 @app.command()

@@ -5,6 +5,25 @@ from pathlib import Path
 import pandas as pd
 
 
+def round_trip_cost(horizon_trading_days: int, asset_type: str, subscribe: float = 0.0015) -> float:
+    """往返交易成本估计（诚实扣钱）。
+    场外基金：申购费(打折~0.15%) + 按持有期的赎回费（7日内 1.5% 是硬伤）。
+    黄金：用买卖价差近似。交易日→自然日约 *1.4。
+    """
+    if asset_type == "gold":
+        return 0.004
+    cal = horizon_trading_days * 1.4
+    if cal < 7:
+        redeem = 0.015
+    elif cal < 30:
+        redeem = 0.005
+    elif cal < 365:
+        redeem = 0.0025
+    else:
+        redeem = 0.0
+    return round(subscribe + redeem, 4)
+
+
 class Ledger:
     def __init__(self, db_path):
         self.db_path = str(db_path)
@@ -19,8 +38,8 @@ class Ledger:
               rationale TEXT, framework_version TEXT, schema_version TEXT
             );
             CREATE TABLE IF NOT EXISTS outcomes (
-              prediction_id INTEGER, horizon INTEGER, realized_return REAL,
-              excess REAL, hit INTEGER,
+              prediction_id INTEGER, horizon INTEGER,
+              gross_return REAL, cost REAL, realized_return REAL, base_up REAL, hit INTEGER,
               PRIMARY KEY (prediction_id, horizon)
             );
             """
@@ -47,7 +66,7 @@ class Ledger:
         c.commit()
         return cur.lastrowid
 
-    def compute_outcomes(self, prediction_id, price_series: pd.DataFrame, benchmark_series=None):
+    def compute_outcomes(self, prediction_id, price_series: pd.DataFrame):
         c = self._conn()
         row = c.execute("SELECT * FROM predictions WHERE id=?", (prediction_id,)).fetchone()
         if row is None:
@@ -55,7 +74,9 @@ class Ledger:
         horizons = json.loads(row["horizons"])
         ref = row["price_ref"]
         sign = row["signal_numeric"]
+        atype = row["type"]
         s = price_series.reset_index(drop=True)
+        full = s["value"].astype(float)
         pos = s.index[s["date"] > row["ts"]]
         start = int(pos[0]) if len(pos) else 0
         results = []
@@ -63,48 +84,60 @@ class Ledger:
             idx = start + h
             if idx >= len(s):
                 continue
-            realized = float(s["value"].iloc[idx] / ref - 1.0)
+            gross = float(s["value"].iloc[idx] / ref - 1.0)
+            # 买入才扣往返成本；回避/观望不产生交易成本
+            cost = round_trip_cost(h, atype) if sign > 0 else 0.0
+            net = round(gross - cost, 6)
+            # 基准上涨基率：全序列 h 期前瞻收益为正的比例（去"牛市啥都涨"的虚高）
+            fwd = full.shift(-h) / full - 1.0
+            base_up = float((fwd.dropna() > 0).mean()) if fwd.notna().any() else 0.5
             if sign == 0:
-                hit = 1 if abs(realized) < 0.01 else 0
+                hit = 1 if abs(gross) < 0.01 else 0
+            elif sign > 0:
+                hit = 1 if net > 0 else 0          # 买：净收益(扣成本)为正才算赢
             else:
-                hit = 1 if (realized > 0) == (sign > 0) else 0
-            c.execute(
-                "INSERT OR REPLACE INTO outcomes VALUES (?,?,?,?,?)",
-                (prediction_id, h, realized, None, hit),
-            )
-            results.append({"horizon": h, "realized_return": realized, "excess": None, "hit": hit})
+                hit = 1 if gross < 0 else 0        # 回避/减：标的下跌才算避对
+            c.execute("INSERT OR REPLACE INTO outcomes VALUES (?,?,?,?,?,?,?)",
+                      (prediction_id, h, round(gross, 6), cost, net, round(base_up, 4), hit))
+            results.append({"horizon": h, "gross_return": round(gross, 6), "cost": cost,
+                            "realized_return": net, "base_up": round(base_up, 4), "hit": hit})
         c.commit()
         return results
+
+    def _agg(self, rows):
+        hits = [r["hit"] for r in rows]
+        hit_rate = sum(hits) / len(hits)
+        nets = [r["realized_return"] for r in rows if r["realized_return"] is not None]
+        base = [r["base_up"] for r in rows if r["base_up"] is not None]
+        avg_net = round(sum(nets) / len(nets), 4) if nets else None
+        base_up = round(sum(base) / len(base), 4) if base else None
+        # edge = 我们的命中率 − 无条件上涨基率（≈0 表示没本事，只是跟大盘涨）
+        edge = round(hit_rate - base_up, 4) if base_up is not None else None
+        return hit_rate, avg_net, base_up, edge
 
     def track_record_for(self, symbol):
         c = self._conn()
         rows = c.execute(
-            "SELECT o.hit, o.realized_return, p.signal_numeric FROM outcomes o "
-            "JOIN predictions p ON p.id=o.prediction_id WHERE p.symbol=?",
-            (symbol,),
+            "SELECT o.hit, o.realized_return, o.base_up, p.signal_numeric FROM outcomes o "
+            "JOIN predictions p ON p.id=o.prediction_id WHERE p.symbol=?", (symbol,),
         ).fetchall()
-        n_pred = c.execute(
-            "SELECT COUNT(*) n FROM predictions WHERE symbol=?", (symbol,)
-        ).fetchone()["n"]
+        n_pred = c.execute("SELECT COUNT(*) n FROM predictions WHERE symbol=?", (symbol,)).fetchone()["n"]
         if not rows:
-            if n_pred == 0:
-                return None
-            return {"past_signals": n_pred, "hit_rate": None, "ic": None, "vs_benchmark": None}
-        hits = [r["hit"] for r in rows]
-        hit_rate = sum(hits) / len(hits)
+            return None if n_pred == 0 else {"past_signals": n_pred, "hit_rate": None,
+                                             "ic": None, "net_return": None, "edge_vs_baserate": None}
+        hit_rate, avg_net, base_up, edge = self._agg(rows)
         ic = None
         if len(rows) >= 3:
             sn = pd.Series([r["signal_numeric"] for r in rows], dtype=float)
             rr = pd.Series([r["realized_return"] for r in rows], dtype=float)
-            ic = None if sn.std() == 0 or rr.std() == 0 else float(sn.corr(rr))
-        return {"past_signals": n_pred, "hit_rate": hit_rate, "ic": ic, "vs_benchmark": None}
+            ic = None if sn.std() == 0 or rr.std() == 0 else round(float(sn.corr(rr)), 4)
+        return {"past_signals": n_pred, "hit_rate": round(hit_rate, 4), "ic": ic,
+                "net_return": avg_net, "base_up_rate": base_up, "edge_vs_baserate": edge}
 
     def review(self, symbol=None, since_version=None):
         c = self._conn()
-        q = (
-            "SELECT p.symbol, o.hit, o.realized_return, p.signal_numeric, p.confidence "
-            "FROM outcomes o JOIN predictions p ON p.id=o.prediction_id WHERE 1=1"
-        )
+        q = ("SELECT o.hit, o.realized_return, o.base_up FROM outcomes o "
+             "JOIN predictions p ON p.id=o.prediction_id WHERE 1=1")
         args = []
         if symbol:
             q += " AND p.symbol=?"
@@ -115,15 +148,19 @@ class Ledger:
         rows = c.execute(q, args).fetchall()
         if not rows:
             return {"n": 0, "note": "暂无已到期的预测，数据不足"}
-        hits = [r["hit"] for r in rows]
+        hit_rate, avg_net, base_up, edge = self._agg(rows)
         return {
             "n": len(rows),
-            "hit_rate": sum(hits) / len(hits),
-            "note": "样本量小，仅供参考" if len(rows) < 20 else "ok",
+            "hit_rate": round(hit_rate, 4),
+            "net_return": avg_net,
+            "base_up_rate": base_up,
+            "edge_vs_baserate": edge,
+            "note": ("命中率已扣交易成本；edge=命中率−无条件上涨基率，≈0=没跑赢大盘只是跟涨。"
+                     + ("样本<20 仅供参考。" if len(rows) < 20 else "")),
         }
 
     def calibration(self, symbol=None):
-        """按当时信心分桶，看真实命中率——衡量"说 80% 把握时是否真 80% 对"。"""
+        """按当时信心分桶，看真实(扣成本后)命中率——衡量"说 80% 把握时是否真 80% 对"。"""
         c = self._conn()
         q = ("SELECT p.confidence AS conf, o.hit AS hit FROM outcomes o "
              "JOIN predictions p ON p.id=o.prediction_id WHERE p.confidence IS NOT NULL")
@@ -147,4 +184,4 @@ class Ledger:
                             "avg_confidence": round(ac, 3), "hit_rate": round(hr, 3),
                             "gap": round(ac - hr, 3)})
         return {"n": len(rows), "buckets": buckets,
-                "note": "gap>0=过度自信(说得比做得好)，<0=过度保守；理想≈0。样本<20 仅供参考"}
+                "note": "命中率已扣成本；gap>0=过度自信，<0=过度保守；理想≈0。样本<20 仅供参考"}

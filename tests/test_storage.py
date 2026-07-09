@@ -19,10 +19,15 @@ def test_log_and_track(tmp_path):
     )
     assert pid > 0
     outs = led.compute_outcomes(pid, _prices(100.0, 40))
-    assert any(o["realized_return"] > 0 for o in outs)
+    o = outs[0]
+    assert o["cost"] > 0                          # 买入扣了往返成本
+    assert o["gross_return"] > o["realized_return"]  # 净收益 < 毛收益
+    assert o["base_up"] == 1.0                    # 单调上涨→基准上涨基率100%
     tr = led.track_record_for("501018")
     assert tr["past_signals"] == 1
     assert 0.0 <= tr["hit_rate"] <= 1.0
+    # 命中但没跑赢基率=只是跟涨，没本事（诚实去虚高）
+    assert tr["edge_vs_baserate"] == 0.0
 
 
 def test_calibration_buckets_by_confidence(tmp_path):
