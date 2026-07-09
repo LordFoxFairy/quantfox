@@ -1,6 +1,6 @@
 import pandas as pd
 
-from quantfox.monitor import check_holding
+from quantfox.monitor import check_candidate, check_holding
 from quantfox.storage import Ledger
 
 
@@ -28,11 +28,33 @@ def test_drawdown_triggers_flag():
     assert any("回撤" in f or "熔断" in f for f in r["flags"])
 
 
-def test_holdings_store_roundtrip(tmp_path):
+def test_candidate_low_valuation_is_buy_opportunity():
+    # 先高后低：最新在近3年低位 → 出买点线索
+    df = _prices([200 - i * 0.1 for i in range(800)])  # 单调下跌，最新最低
+    r = check_candidate(df, target_price=None)
+    assert r["status"] == "可关注买点"
+    assert any("低位" in s for s in r["entry_signals"])
+
+
+def test_candidate_target_price_hit():
+    df = _prices([100 + (i % 5) for i in range(300)])  # 在 100-104 徘徊
+    r = check_candidate(df, target_price=110.0)  # 现价 < 110
+    assert any("目标买入价" in s for s in r["entry_signals"])
+
+
+def test_holdings_two_states(tmp_path):
     led = Ledger(tmp_path / "t.db")
-    led.add_holding("000001", "otc_fund", 1.5, "2026-01-01", note="半导体")
-    led.add_holding("Au99.99", "gold", 900.0, "2026-02-01")
-    rows = led.list_holdings()
-    assert {r["symbol"] for r in rows} == {"000001", "Au99.99"}
-    assert led.remove_holding("000001") == 1
-    assert {r["symbol"] for r in led.list_holdings()} == {"Au99.99"}
+    led.add_watching("000001", "otc_fund", target_price=1.2, note="观测")
+    led.add_watching("Au99.99", "gold")
+    rows = {r["symbol"]: r for r in led.list_holdings()}
+    assert rows["000001"]["status"] == "watching"
+    assert rows["000001"]["entry_price"] is None
+    # 观测 → 买入 转态
+    led.mark_bought("000001", "otc_fund", 1.15, "2026-03-01")
+    rows = {r["symbol"]: r for r in led.list_holdings()}
+    assert rows["000001"]["status"] == "holding"
+    assert rows["000001"]["entry_price"] == 1.15
+    # 直接新增持仓（未曾观测）
+    led.mark_bought("161725", "otc_fund", 0.9, "2026-03-02")
+    assert {r["symbol"] for r in led.list_holdings()} == {"000001", "Au99.99", "161725"}
+    assert led.remove_holding("Au99.99") == 1

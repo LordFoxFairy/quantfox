@@ -206,50 +206,67 @@ def calibration(query: str = typer.Argument(None), all: bool = typer.Option(Fals
     typer.echo(json.dumps(led.calibration(symbol=symbol), ensure_ascii=False, indent=2))
 
 
-watch_app = typer.Typer(help="持仓监控清单（opt-in：你自己把要看的基金加进来）")
+watch_app = typer.Typer(help="监控清单（opt-in）：观测找买点 / 持有看离场，两态")
 app.add_typer(watch_app, name="watch")
 
 
 @watch_app.command("add")
-def watch_add(symbol: str, entry_price: float, entry_date: str,
+def watch_add(symbol: str,
+              target_price: float = typer.Option(None, help="目标买入价（到价提醒）"),
               note: str = typer.Option("", help="备注")):
-    """把一只持仓加入监控清单。"""
+    """把一只标的加入【观测中】（还没买，等买点）。"""
     asset = resolve(symbol)
-    _ledger().add_holding(asset.symbol, asset.type, entry_price, entry_date, note)
-    typer.echo(json.dumps({"added": asset.symbol}, ensure_ascii=False))
+    _ledger().add_watching(asset.symbol, asset.type, target_price, note)
+    typer.echo(json.dumps({"watching": asset.symbol}, ensure_ascii=False))
+
+
+@watch_app.command("buy")
+def watch_buy(symbol: str,
+              entry_price: float = typer.Option(..., help="买入价"),
+              entry_date: str = typer.Option(..., help="买入日期 YYYY-MM-DD")):
+    """标记为【已买入·持有中】（可对观测中的标的转态，或直接新增持仓）。"""
+    asset = resolve(symbol)
+    _ledger().mark_bought(asset.symbol, asset.type, entry_price, entry_date)
+    typer.echo(json.dumps({"holding": asset.symbol}, ensure_ascii=False))
 
 
 @watch_app.command("list")
 def watch_list():
-    """列出监控清单。"""
+    """列出监控清单（含状态）。"""
     typer.echo(json.dumps(_ledger().list_holdings(), ensure_ascii=False, indent=2))
 
 
 @watch_app.command("remove")
 def watch_remove(symbol: str):
-    """从监控清单移除。"""
+    """从清单移除（如已卖出）。"""
     n = _ledger().remove_holding(resolve(symbol).symbol)
     typer.echo(json.dumps({"removed": n}, ensure_ascii=False))
 
 
 @watch_app.command("check")
 def watch_check():
-    """快扫所有持仓，标出"需关注"的（触发熔断/回撤/跌破MA60/估值高位）。"""
-    from .monitor import check_holding
+    """快扫清单：观测的找买点、持有的看离场，分组输出。"""
+    from .monitor import check_candidate, check_holding
 
     led = _ledger()
-    out = []
+    watching, holding = [], []
     for h in led.list_holdings():
         asset = resolve(h["symbol"])
         try:
             prices = _prices_for(asset)
-            r = check_holding(prices, h["entry_price"], h["entry_date"], asset.type)
+            if h["status"] == "holding":
+                r = check_holding(prices, h["entry_price"], h["entry_date"], asset.type)
+            else:
+                r = check_candidate(prices, h.get("target_price"), asset.type)
         except Exception as e:  # noqa
             r = {"status": "取价失败", "error": str(e)}
-        out.append({"symbol": h["symbol"], "name": None, **r})
-    need = [o["symbol"] for o in out if o.get("status") == "需关注"]
-    typer.echo(json.dumps({"n": len(out), "need_attention": need, "holdings": out},
-                          ensure_ascii=False, indent=2))
+        (holding if h["status"] == "holding" else watching).append({"symbol": h["symbol"], **r})
+    buy_now = [o["symbol"] for o in watching if o.get("status") == "可关注买点"]
+    exit_now = [o["symbol"] for o in holding if o.get("status") == "需关注"]
+    typer.echo(json.dumps({
+        "watching": {"n": len(watching), "buy_opportunity": buy_now, "items": watching},
+        "holding": {"n": len(holding), "need_attention": exit_now, "items": holding},
+    }, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":

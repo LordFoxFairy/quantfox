@@ -43,23 +43,35 @@ class Ledger:
               PRIMARY KEY (prediction_id, horizon)
             );
             CREATE TABLE IF NOT EXISTS holdings (
-              symbol TEXT PRIMARY KEY, type TEXT,
-              entry_price REAL, entry_date TEXT, note TEXT
+              symbol TEXT PRIMARY KEY, type TEXT, status TEXT,
+              entry_price REAL, entry_date TEXT, target_price REAL, note TEXT
             );
             """
         )
         c.commit()
 
-    # --- 持仓清单（供 fund-watch 每日监控）---
-    def add_holding(self, symbol, type, entry_price, entry_date, note=""):
+    # --- 监控清单（两态：watching 观测找买点 / holding 持有看离场）---
+    def add_watching(self, symbol, type, target_price=None, note=""):
         c = self._conn()
-        c.execute("INSERT OR REPLACE INTO holdings VALUES (?,?,?,?,?)",
-                  (symbol, type, entry_price, entry_date, note))
+        c.execute(
+            "INSERT OR REPLACE INTO holdings (symbol,type,status,entry_price,entry_date,target_price,note) "
+            "VALUES (?,?,'watching',NULL,NULL,?,?)", (symbol, type, target_price, note))
+        c.commit()
+
+    def mark_bought(self, symbol, type, entry_price, entry_date, note=""):
+        c = self._conn()
+        cur = c.execute(
+            "UPDATE holdings SET status='holding',entry_price=?,entry_date=? WHERE symbol=?",
+            (entry_price, entry_date, symbol))
+        if cur.rowcount == 0:
+            c.execute(
+                "INSERT INTO holdings (symbol,type,status,entry_price,entry_date,target_price,note) "
+                "VALUES (?,?,'holding',?,?,NULL,?)", (symbol, type, entry_price, entry_date, note))
         c.commit()
 
     def list_holdings(self):
         c = self._conn()
-        return [dict(r) for r in c.execute("SELECT * FROM holdings ORDER BY entry_date").fetchall()]
+        return [dict(r) for r in c.execute("SELECT * FROM holdings ORDER BY status,symbol").fetchall()]
 
     def remove_holding(self, symbol):
         c = self._conn()

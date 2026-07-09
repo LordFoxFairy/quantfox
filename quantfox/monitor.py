@@ -10,6 +10,39 @@ from .percentile import price_percentile
 
 DRAWDOWN_TRIGGER = -0.15   # 熔断/回撤触发线
 VALUATION_HIGH = 0.9       # 估值高位线（近3年分位）
+VALUATION_LOW = 0.35       # 估值低位线（买点线索）
+PULLBACK_FROM_HIGH = -0.20  # 从52周高点回落多少算"回调到位"
+
+
+def check_candidate(prices: pd.DataFrame, target_price: float = None,
+                    asset_type: str = "otc_fund") -> dict:
+    """观测态：找买点线索。只给客观线索，是否真买结合 fund-analyze 深析。"""
+    s = prices["value"].astype(float).reset_index(drop=True)
+    latest = float(s.iloc[-1])
+    pct = price_percentile(prices, 3).get("price_pct")
+    high_52w = float(s.tail(250).max())
+    from_high = latest / high_52w - 1.0 if high_52w else None
+    rsi = compute_indicators(prices)["rsi"]["rsi12"]
+
+    signals = []
+    if pct is not None and pct <= VALUATION_LOW:
+        signals.append(f"估值已到近 3 年 {pct * 100:.0f}% 低位，性价比出现")
+    if from_high is not None and from_high <= PULLBACK_FROM_HIGH:
+        signals.append(f"已从 52 周高点回落 {from_high * 100:.0f}%")
+    if target_price and latest <= target_price:
+        signals.append(f"已到你的目标买入价 {target_price}")
+    if rsi is not None and rsi <= 30:
+        signals.append(f"RSI {rsi:.0f} 超卖，短期或有反弹")
+
+    return {
+        "latest": round(latest, 4),
+        "latest_date": str(prices["date"].iloc[-1]),
+        "valuation_pct_3y": round(pct, 4) if pct is not None else None,
+        "from_52w_high": round(from_high, 4) if from_high is not None else None,
+        "rsi12": round(rsi, 1) if rsi is not None else None,
+        "entry_signals": signals,
+        "status": "可关注买点" if signals else "等待更好买点",
+    }
 
 
 def check_holding(prices: pd.DataFrame, entry_price: float, entry_date: str,
