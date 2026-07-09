@@ -82,6 +82,20 @@ def profile(query: str):
 
 
 @app.command()
+def screen(type: str = typer.Option("股票型", help="基金类型：全部/股票型/混合型/债券型/指数型/QDII/FOF"),
+           top: int = typer.Option(50, help="返回前 N 名"),
+           consistent: bool = typer.Option(False, "--consistent", help="只要近1年&近3年都前25%的常青基金")):
+    """全市场粗筛：长周期加权+一致性打分，出 Top-N 候选（供精筛）。"""
+    from .data.universe import load_universe
+    from .screen import screen as run_screen
+
+    df = load_universe(type)
+    result = run_screen(df, top=top, consistent_only=consistent)
+    typer.echo(json.dumps({"type": type, "universe_size": len(df), "returned": len(result),
+                           "candidates": result}, ensure_ascii=False, indent=2))
+
+
+@app.command()
 def report(query: str,
            analysis_file: str = typer.Option(None, help="CC 判断的 JSON（verdict/dimensions/commentary_html/risks_html）"),
            out: str = typer.Option(None, help="输出 HTML 路径")):

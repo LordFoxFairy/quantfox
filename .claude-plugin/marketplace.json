@@ -11,11 +11,12 @@
   "plugins": [
     {
       "name": "quantfox",
-      "description": "场外基金与黄金的量化投研套件：单标的深度分析+可视化报告、仓位/定投建议、多标的对比、历史复盘。共用 akshare 数据引擎，每个 skill 内部自闭环。",
+      "description": "场外基金与黄金的量化投研套件：全市场选基、单标的深度分析+可视化报告、仓位/定投、多标的对比、组合体检、历史复盘。共用 akshare 数据引擎，每个 skill 内部自闭环。",
       "source": "./",
       "strict": false,
       "skills": [
         "./skills/fund-analyze",
+        "./skills/fund-screener",
         "./skills/fund-compare",
         "./skills/position-sizer",
         "./skills/portfolio-manager",
