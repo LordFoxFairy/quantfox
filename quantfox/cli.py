@@ -162,6 +162,49 @@ def log_signal(
     typer.echo(json.dumps({"prediction_id": pid}))
 
 
+email_app = typer.Typer(help="邮件推送（配置你自己的邮箱后，可把报告/提醒发给任意邮箱）")
+app.add_typer(email_app, name="email")
+
+
+@email_app.command("config")
+def email_config(smtp_host: str = typer.Option(..., help="如 smtp.gmail.com / smtp.163.com"),
+                 smtp_port: int = typer.Option(465, help="SSL 常用 465"),
+                 username: str = typer.Option(..., help="你的邮箱账号"),
+                 password: str = typer.Option(..., help="授权码/应用专用密码（不是登录密码）"),
+                 from_addr: str = typer.Option(..., help="发件邮箱"),
+                 use_ssl: bool = typer.Option(True, help="SSL(465) 用 True；STARTTLS(587) 用 False")):
+    """配置你自己的发件邮箱（存本地、不进仓库、权限600）。"""
+    from .notify import save_email_config
+
+    p = save_email_config({"smtp_host": smtp_host, "smtp_port": smtp_port, "username": username,
+                           "password": password, "from_addr": from_addr, "use_ssl": use_ssl})
+    typer.echo(json.dumps({"saved": str(p), "note": "密码仅存本地，未打印"}, ensure_ascii=False))
+
+
+@email_app.command("send")
+def email_send(to: str = typer.Option(..., help="收件邮箱"),
+               subject: str = typer.Option(..., help="标题"),
+               body: str = typer.Option(None, help="正文（或用 --body-file）"),
+               body_file: str = typer.Option(None, help="正文文件（如报告 HTML）"),
+               attach: str = typer.Option(None, help="附件路径（如报告 HTML）"),
+               html: bool = typer.Option(False, help="正文按 HTML 发送")):
+    """发送邮件。"""
+    from .notify import send_email
+
+    text = Path(body_file).read_text(encoding="utf-8") if body_file else (body or "")
+    typer.echo(json.dumps(send_email(to, subject, text, attach=attach, html=html or bool(body_file)),
+                          ensure_ascii=False))
+
+
+@email_app.command("test")
+def email_test(to: str = typer.Option(..., help="收件邮箱")):
+    """发一封测试邮件，验证配置。"""
+    from .notify import send_email
+
+    typer.echo(json.dumps(send_email(to, "quantfox 测试邮件", "配置成功，可以收到 quantfox 的提醒了。"),
+                          ensure_ascii=False))
+
+
 @app.command()
 def backtest(query: str,
              rule: str = typer.Option("valuation", help="机械规则：valuation/trend/combo"),
