@@ -41,12 +41,31 @@ def test_score_rewards_long_term_consistency():
     assert not ranked[ranked["code"] == "000002"]["consistent"].iloc[0]
 
 
-def test_screen_topn_and_consistent_filter():
+def test_screen_topn_overheat_and_exclude():
     df = load_universe("股票型", fetcher=_fetcher)
-    top2 = screen(df, top=2)
+    top2 = screen(df, top=2, per_theme=10)
     assert len(top2) == 2
-    only = screen(df, top=50, consistent_only=True)
-    codes = {r["code"] for r in only}
-    assert "000001" in codes and "000002" not in codes
+    allres = screen(df, top=50, per_theme=10)
+    codes = {r["code"] for r in allres}
     # 太新的（无近1年）不纳入
-    assert "000004" not in {r["code"] for r in screen(df, top=50)}
+    assert "000004" not in codes
+    # 昙花B（近3月最高=超买）应被标 overheated
+    bh = [r for r in allres if r["code"] == "000002"][0]
+    assert bh["overheated"] is True or bh["overheated"]
+    # 排除过热后，昙花B 不在
+    kept = {r["code"] for r in screen(df, top=50, per_theme=10, exclude_overheated=True)}
+    assert "000002" not in kept
+
+
+def test_per_theme_limits_diversity():
+    # 同主题3只，per_theme=2 → 最多留2只
+    df = pd.DataFrame({
+        "基金代码": ["001", "002", "003"], "基金简称": ["半导体龙头", "芯片先锋", "集成电路精选"],
+        "近3月": [10.0, 9.0, 8.0], "近6月": [15.0, 14.0, 13.0], "近1年": [40.0, 38.0, 36.0],
+        "近2年": [50.0, 48.0, 46.0], "近3年": [60.0, 58.0, 56.0], "今年来": [10.0, 9.0, 8.0],
+        "手续费": ["0.15%"] * 3,
+    })
+    u = load_universe("x", fetcher=lambda t: df)
+    res = screen(u, top=50, per_theme=2)
+    semi = [r for r in res if r["theme"] == "半导体/芯片"]
+    assert len(semi) == 2  # 3只同主题被限到2只

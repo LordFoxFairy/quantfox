@@ -163,20 +163,26 @@ def intraday(query: str):
 
 @app.command()
 def screen(type: str = typer.Option("股票型", help="基金类型：全部/股票型/混合型/债券型/指数型/QDII/FOF"),
-           top: int = typer.Option(50, help="返回前 N 名"),
-           consistent: bool = typer.Option(False, "--consistent", help="只要近1年&近3年都前25%的常青基金")):
-    """全市场粗筛：长周期加权+一致性打分，出 Top-N 候选（供精筛）。"""
+           top: int = typer.Option(30, help="返回前 N 名（已去重、按主题分散）"),
+           style: str = typer.Option("balanced", help="风格：balanced/steady/momentum/pullback"),
+           per_theme: int = typer.Option(2, help="每个主题最多几只（强制分散）"),
+           exclude_overheated: bool = typer.Option(False, "--exclude-overheated", help="直接剔除过热(山顶)的")):
+    """全市场多因子深筛：赢家+动能不过热+回调不追高+A/C去重+主题限流。供精筛。"""
     from .data.universe import load_universe
     from .screen import screen as run_screen
 
     df = load_universe(type)
-    result = run_screen(df, top=top, consistent_only=consistent)
+    result = run_screen(df, top=top, style=style, per_theme=per_theme, exclude_overheated=exclude_overheated)
+    themes = {}
+    for r in result:
+        themes[r.get("theme")] = themes.get(r.get("theme"), 0) + 1
     typer.echo(json.dumps({
-        "type": type, "universe_size": len(df), "returned": len(result),
+        "type": type, "style": style, "universe_size": len(df), "returned": len(result),
+        "theme_spread": themes,
         "caveats": [
-            "幸存者偏差：榜单只含仍存续的基金，清盘/合并的已消失，Top 全是幸存者，历史收益天然偏高。",
-            "这是按历史收益排的候选池，不是推荐；须再精筛降温（估值/回撤/集中度/追热）。",
-            "过去收益≠未来收益。",
+            "已做：赢家(1/2/3年靠前) + 动能不过热(剔抛物线) + 回调不追高 + A/C去重 + 每主题≤%d只。" % per_theme,
+            "overheated=true 的是站在山顶/超买的，别追；这仍是候选池不是推荐。",
+            "须再精筛：逐只 evidence 看估值分位/RSI/回撤/持仓 + WebSearch 舆情。幸存者偏差仍在，过去≠未来。",
         ],
         "candidates": result,
     }, ensure_ascii=False, indent=2))
