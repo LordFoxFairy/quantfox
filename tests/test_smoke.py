@@ -2,4 +2,4 @@ import quantfox
 
 
 def test_version():
-    assert quantfox.__version__ == "0.1.3"
+    assert quantfox.__version__ == "0.1.4"

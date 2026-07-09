@@ -1,6 +1,6 @@
 [project]
 name = "quantfox"
-version = "0.1.3"
+version = "0.1.4"
 description = "场外基金与黄金的量化证据卡 + Claude 决策助手"
 requires-python = ">=3.12,<3.13"
 dependencies = [

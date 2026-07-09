@@ -2,6 +2,25 @@ import pandas as pd
 
 from quantfox.data.universe import load_universe
 from quantfox.screen import score_universe, screen
+from quantfox.screen_report import build_screen_report
+
+
+def test_screen_report_html_renders():
+    cands = [
+        {"code": "000001", "name": "华夏成长", "theme": "AI/算力/科技", "score": 95.0,
+         "overheated": True, "r_1m": 5.0, "r_3m": 40.0, "r_6m": 60.0, "r_1y": 200.0, "r_3y": 300.0, "fee": "0.15%"},
+        {"code": "100032", "name": "富国红利", "theme": "红利/价值/低波", "score": 85.0,
+         "overheated": False, "r_1m": -1.0, "r_3m": 10.0, "r_6m": 20.0, "r_1y": 30.0, "r_3y": 50.0, "fee": "0.15%"},
+    ]
+    meta = {"title": "深筛报告", "theme_spread": {"AI/算力/科技": 1, "红利/价值/低波": 1},
+            "market_valuation": {"available": True, "percentile_10y": 0.70, "level": "偏贵"},
+            "generated_at": "2026-07-10"}
+    html = build_screen_report(cands, meta)
+    assert "__ROWS__" not in html and "__TITLE__" not in html  # 占位符已替换
+    assert "华夏成长" in html and "富国红利" in html
+    assert "山顶" in html          # 过热标红
+    assert "偏贵" in html          # 大盘估值进了报告头
+    assert "≠ 现在能买" in html    # 相对分免责
 
 
 def _raw_universe():

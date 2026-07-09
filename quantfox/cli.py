@@ -188,6 +188,51 @@ def screen(type: str = typer.Option("股票型", help="基金类型：全部/股
     }, ensure_ascii=False, indent=2))
 
 
+@app.command("screen-report")
+def screen_report(type: str = typer.Option("股票型", help="基金类型"),
+                  style: str = typer.Option("balanced", help="balanced/steady/momentum/pullback"),
+                  top: int = typer.Option(50, help="前 N 名（k≈50 初筛）"),
+                  per_theme: int = typer.Option(3, help="每主题最多几只"),
+                  exclude_overheated: bool = typer.Option(False, "--exclude-overheated"),
+                  out: str = typer.Option(None, help="输出 HTML 路径"),
+                  pdf: bool = typer.Option(True, "--pdf/--no-pdf", help="导出 PDF（默认开，邮箱能看）")):
+    """全市场深筛 → 初筛报告（含大盘估值+主题分布+Top-k表，HTML+PDF 可邮件）。"""
+    from .data.universe import load_universe
+    from .screen import screen as run_screen
+    from .screen_report import build_screen_report
+
+    df = load_universe(type)
+    cands = run_screen(df, top=top, style=style, per_theme=per_theme, exclude_overheated=exclude_overheated)
+    themes = {}
+    for c in cands:
+        themes[c.get("theme")] = themes.get(c.get("theme"), 0) + 1
+    mv = {}
+    try:
+        from .data.valuation import market_valuation as _mv
+        mv = _mv()
+    except Exception:  # noqa
+        mv = {}
+    meta = {"title": f"全市场深筛报告 · {type}",
+            "subtitle": f"风格 {style} · 全市场 {len(df)} 只 · Top {len(cands)}（已去重、按主题分散）",
+            "theme_spread": themes, "market_valuation": mv, "generated_at": _dt.date.today().isoformat()}
+    html = build_screen_report(cands, meta)
+    if out:
+        path = Path(out)
+    else:
+        d = data_dir() / "reports"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / f"screen_{type}_{_dt.date.today().isoformat()}.html"
+    path.write_text(html, encoding="utf-8")
+    result = {"html": str(path), "count": len(cands)}
+    if pdf:
+        from .report import html_to_pdf
+
+        pdf_path = path.with_suffix(".pdf")
+        html_to_pdf(path, pdf_path)
+        result["pdf"] = str(pdf_path)  # 邮件附这个
+    typer.echo(json.dumps(result, ensure_ascii=False))
+
+
 @app.command()
 def report(query: str,
            analysis_file: str = typer.Option(None, help="CC 判断的 JSON（verdict/dimensions/commentary_html/risks_html）"),

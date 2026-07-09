@@ -18,11 +18,10 @@ description: >-
 
 ## 三级深筛流程（跑全市场，别只看前12）
 
-1. **先明确需求（不问清就别筛）**：投资期限（短线1-3月 / 中长期）、风险偏好、想要的风格。据此选 `--style`：
-   - `balanced`（默认，动能但不追山顶）· `steady`（更稳、更怕过热）· `pullback`（找回调买点）· `momentum`（认动能，仍标过热）。
+1. **先看大盘 + 明确需求**：先 `quantfox market-valuation` 看全A大盘贵不贵——**偏贵/贵时建议 `--style steady` 或 `pullback`**，别追顶。再问清投资期限（短线1-3月/中长期）、风险偏好。风格：`balanced`（默认，动能不追山顶）·`steady`（更稳、更怕过热）·`pullback`（找回调买点）·`momentum`（认动能，仍标过热）。
 2. **多因子粗筛全市场**：`quantfox screen --type <类型> --style <风格> --top 30 [--exclude-overheated]`。
-   引擎已内置：**赢家(1/2/3年一致靠前) + 动能不过热(剔抛物线>55%) + 回调不追高 + A/C去重 + 每主题≤2只强制分散**。
-   输出每只带 `theme`、`overheated`、`score`、多周期收益，还有 `theme_spread`（主题分布）。**`overheated=true` 的是山顶货，默认别选。**
+   引擎内置：**赢家(1/2/3年一致靠前) + 动能不过热(剔抛物线>55%) + 回调不追高 + A/C去重 + 每主题≤2只强制分散**。输出带 `theme/overheated/score/多周期收益` + `theme_spread`。**`overheated=true` 是山顶货，默认别选。**
+   - **要给用户一份初筛名单报告**：`quantfox screen-report --type <类型> --style <风格> --top 50 --pdf` → 生成含**大盘估值+主题分布+Top-k表(过热标红)**的 HTML+PDF。**发用户一律附 PDF**（邮箱看不了 HTML）。
 3. **逐只精筛（在短名单上做真功课）**：对候选逐一 `quantfox evidence <代码> --format json` + `quantfox market-valuation`，看：
    - **估值分位** `percentile.price_pct`：>0.85 高位追高 → 降级/剔除；低分位有安全垫 → 加分。
    - **风险**：最大回撤、夏普、`ohlc.rsi/超买`；短线尤其怕买在 RSI 超买、52周高点。

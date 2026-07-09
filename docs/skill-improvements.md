@@ -17,7 +17,9 @@
 ## ✅ 已完成（2026-07-10，commit 见 git）
 - **A1/A2/A3 记账重构**：新增 `lots` 表 + `add_lot/position/list_lots`（storage.py）；`watch buy --amount <金额> --nav <确认净值>` 按金额分批记账（不覆盖、自动折算份额+加权成本）；`watch position` 看分笔+加权成本+现值+浮盈亏；SOP 写清 T+1/15:00 cutoff、优先让用户报 App 确认成本。测试 `test_lots.py` 3 绿。
 - **B1 估值闸门**：fund-screener 铁律点明"深筛分是相对分≠能买"，短名单必须过 evidence 估值分位闸门(>0.85 剔除)，区分相对分 vs 绝对估值位。
-- 仍待：A2 的自动 T+1 对账（现为 SOP 指南，非代码）；B2/B3/B4（下方 P2）。
+- **B4 深筛初筛报告**：新增 `quantfox screen-report`（+`screen_report.py`+模板）→ 含大盘估值+主题分布+Top-k表(过热标红)的自包含 HTML，`--pdf` 转 PDF（复用 html_to_pdf）发邮件。测试 `test_screen_report_html_renders` 绿。
+- **B2 大盘 regime 前置**：screen-report 报告头含 `market-valuation`；fund-screener SOP 第1步先跑 market-valuation，偏贵→建议 steady/pullback。
+- 仍待：A2 的自动 T+1 对账（现为 SOP 指南）；**B3 舆情可复用模块（需先验证 alpha，最谨慎，留最后）**。
 
 ## A. 持仓记账（P1 · 影响 portfolio-manager / fund-watch / position-sizer）
 
