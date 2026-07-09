@@ -105,7 +105,6 @@ class Ledger:
         if row is None:
             return []
         horizons = json.loads(row["horizons"])
-        ref = row["price_ref"]
         sign = row["signal_numeric"]
         atype = row["type"]
         s = price_series.reset_index(drop=True)
@@ -114,12 +113,13 @@ class Ledger:
         if not len(pos):
             return []  # 没有预测日之后的价格 → 无法结算，绝不用序列开头乱算污染账本
         start = int(pos[0])
+        entry = float(s["value"].iloc[start])  # 实际可成交净值（决策后第一个交易日，修 T+1 错位）
         results = []
         for h in horizons:
             idx = start + h
             if idx >= len(s):
                 continue
-            gross = float(s["value"].iloc[idx] / ref - 1.0)
+            gross = float(s["value"].iloc[idx] / entry - 1.0)
             # 买入才扣往返成本；回避/观望不产生交易成本
             cost = round_trip_cost(h, atype) if sign > 0 else 0.0
             net = round(gross - cost, 6)
@@ -171,7 +171,7 @@ class Ledger:
 
     def review(self, symbol=None, since_version=None):
         c = self._conn()
-        q = ("SELECT o.hit, o.realized_return, o.base_up FROM outcomes o "
+        q = ("SELECT o.hit, o.realized_return, o.base_up, p.signal_numeric AS sn FROM outcomes o "
              "JOIN predictions p ON p.id=o.prediction_id WHERE 1=1")
         args = []
         if symbol:
@@ -184,13 +184,23 @@ class Ledger:
         if not rows:
             return {"n": 0, "note": "暂无已到期的预测，数据不足"}
         hit_rate, avg_net, base_up, edge = self._agg(rows)
+
+        def sub(rs):
+            if not rs:
+                return None
+            hr, net, bu, e = self._agg(rs)
+            return {"n": len(rs), "hit_rate": round(hr, 4), "net_return": net, "edge_vs_baserate": e}
+
         return {
             "n": len(rows),
             "hit_rate": round(hit_rate, 4),
             "net_return": avg_net,
             "base_up_rate": base_up,
             "edge_vs_baserate": edge,
-            "note": ("命中率已扣交易成本；edge=命中率−无条件上涨基率，≈0=没跑赢大盘只是跟涨。"
+            "buy": sub([r for r in rows if r["sn"] > 0]),      # 买入信号：net_return 是真实资金胜率/收益
+            "avoid": sub([r for r in rows if r["sn"] < 0]),    # 回避信号：net_return 是"避开的跌幅"，非资金收益
+            "note": ("买入看 buy.net_return（真实资金）；回避看方向对不对，其 net 非资金收益。"
+                     "edge=命中率−无条件上涨基率，≈0=只是跟涨。"
                      + ("样本<20 仅供参考。" if len(rows) < 20 else "")),
         }
 

@@ -43,7 +43,14 @@
   - **删除 news 引擎**：舆情由 CC agent 用 WebSearch 自搜自判。
   - SKILL.md 重写为**专业分析 SOP**；分析框架 v3 定优先级（它是什么→贵不贵→险不险→靠不靠谱→风往哪吹→技术面辅助）。
 
-### 已知待办（推广前）
-- [ ] 推到 GitHub，把 README 里 `/plugin marketplace add thefoxfairy/money` 换成真实仓库地址。
-- [ ] 打包时确保 `quantfox/prompts/*.md` 随 wheel 分发（当前 `uv run` 从源码读取正常）。
+### 2026-07-09 新增（更名后）
+- 更名 quantfox；全市场选基 fund-screener；提准四机制（弃权/多周期/反方/校准）；回测背书门槛；大盘估值锚 market-valuation；离线可视化报告（内联 ECharts）+ 情景板块。
+- 两态监控 fund-watch：观测(找买点)/持有(看离场)；持有分"提前预警(留意)/确认离场(需离场)"，重在跌之前示警。
+- 邮件推送 `quantfox email`（用户自配 SMTP、本地存储权限600）。
+- 专家二轮 review 修复：回测收益虚高、结算 start=0、信心口径、回撤日度、staleness、schema、证据快照；复盘收益改从实际可成交净值起算（T+1）、按买入/回避拆口径；框架 v11 必输出买卖时机+持有期+粗略收益区间。
+- 项目文件夹 money→quantfox 更名后重建 venv，54 测试全绿。
+
+### 已知待办
+- [x] 推到 GitHub：`https://github.com/LordFoxFairy/quantfox.git`（进行中）。
+- [ ] 打包时确保 `quantfox/prompts/*.md`、`skills/**` 随分发（当前 `uv run` 从源码读取正常）。
 - [ ] 基金"名称→代码"解析（当前仅支持 6 位代码或"黄金"）。
