@@ -22,7 +22,8 @@ def test_backtest_structure_and_point_in_time():
     assert r["n_windows"] > 0
     assert 0.0 <= r["base_up_rate"] <= 1.0
     assert set(r["buy"].keys()) == {"n", "hit_rate", "avg_net_return", "edge_vs_baserate"}
-    assert "total_return" in r["strategy"] and "max_drawdown" in r["strategy"]
+    assert "total_return" in r["strategy"] and "max_drawdown_windowed" in r["strategy"]
+    assert "asset_max_drawdown_daily" in r["strategy"]
     assert "buy_and_hold_return" in r
 
 

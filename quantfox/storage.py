@@ -78,7 +78,9 @@ class Ledger:
         s = price_series.reset_index(drop=True)
         full = s["value"].astype(float)
         pos = s.index[s["date"] > row["ts"]]
-        start = int(pos[0]) if len(pos) else 0
+        if not len(pos):
+            return []  # 没有预测日之后的价格 → 无法结算，绝不用序列开头乱算污染账本
+        start = int(pos[0])
         results = []
         for h in horizons:
             idx = start + h

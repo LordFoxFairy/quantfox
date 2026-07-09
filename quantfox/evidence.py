@@ -1,3 +1,4 @@
+import datetime as _dt
 import json
 from typing import Literal, Optional
 
@@ -78,7 +79,9 @@ def build_evidence(
     prices: pd.DataFrame,
     profile: dict,
     track_record: Optional[dict],
+    today: Optional[_dt.date] = None,
 ) -> EvidenceCard:
+    today = today or _dt.date.today()
     notes: list[str] = []
     returns: dict = {}
     metrics: dict = {}
@@ -103,6 +106,15 @@ def build_evidence(
         pq = "ok" if len(prices) >= 252 else "partial"
         if pq == "partial":
             notes.append("价格数据不足一年，指标与风险绩效置信度下调")
+        # 新鲜度：基金每交易日更新，>10 自然日没更新可疑（停牌/停更/接口滞后）
+        try:
+            last = _dt.date.fromisoformat(str(prices["date"].iloc[-1]))
+            stale_days = (today - last).days
+            if stale_days > 10:
+                pq = "stale"
+                notes.append(f"最新净值已 {stale_days} 天未更新，可能停牌/停更，买卖前务必核实")
+        except (ValueError, TypeError):
+            pass
         ohlc = "available" if has_ohlc(prices) else "unavailable"
         if ohlc == "unavailable":
             notes.append("场外基金仅净值：ATR/KDJ/CCI/Williams%R/ADX 不可用")

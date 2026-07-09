@@ -149,6 +149,8 @@ def log_signal(
     """把本次信号 + 当时证据快照存进预测账本。"""
     from .evidence import SCHEMA_VERSION
 
+    if not 0.0 <= confidence <= 1.0:
+        raise typer.BadParameter(f"confidence 必须是 0-1（不是 0-100）；收到 {confidence}")
     if evidence_file:
         evidence_json = Path(evidence_file).read_text(encoding="utf-8")
     pid = _ledger().log_signal(
