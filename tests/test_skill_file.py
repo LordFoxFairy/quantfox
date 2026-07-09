@@ -26,8 +26,10 @@ def test_fund_analyze_closed_loop():
 
 def test_fund_analyze_has_report_assets():
     assert (SKILLS / "fund-analyze" / "references" / "evidence-card.md").exists()
-    assert (SKILLS / "fund-analyze" / "assets" / "report_template.html").exists()
     assert (SKILLS / "fund-analyze" / "scripts" / "setup.sh").exists()
+    # 报告模板/echarts 已打进 Python 包，全局安装也能用
+    assert (ROOT / "quantfox" / "assets" / "report_template.html").exists()
+    assert (ROOT / "quantfox" / "assets" / "echarts.min.js").exists()
 
 
 def test_marketplace_lists_all_skills():

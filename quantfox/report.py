@@ -14,7 +14,7 @@ from .data.resolve import Asset, resolve
 from .metrics import compute_metrics
 from .percentile import price_percentile
 
-_ASSETS = Path(__file__).resolve().parent.parent / "skills" / "fund-analyze" / "assets"
+_ASSETS = Path(__file__).resolve().parent / "assets"  # 打进包，全局安装也能用
 _TEMPLATE = _ASSETS / "report_template.html"
 _ECHARTS = _ASSETS / "echarts.min.js"
 _CDN = '<script src="https://cdn.jsdelivr.net/npm/echarts@5/dist/echarts.min.js"></script>'

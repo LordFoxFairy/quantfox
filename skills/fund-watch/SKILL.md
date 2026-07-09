@@ -18,9 +18,9 @@ description: >-
 | **持有中 holding** | 已买入 | **该下车了吗（重在提前）** | **提前预警(留意)**：估值高位/超买/MACD死叉/MA5<MA20/超涨；**确认离场(需离场)**：浮亏熔断/回撤>15%/跌破MA60 |
 
 ## 用户如何维护清单（opt-in）
-- 观测一只：`uv run quantfox watch add <代码> [--target-price 目标价]`
-- 真买入了：`uv run quantfox watch buy <代码> --entry-price <支付宝真实净值>`（`--entry-date` 可选，默认今天；会把观测转成持有）
-- 卖出移除：`uv run quantfox watch remove <代码>`
+- 观测一只：`quantfox watch add <代码> [--target-price 目标价]`
+- 真买入了：`quantfox watch buy <代码> --entry-price <支付宝真实净值>`（`--entry-date` 可选，默认今天；会把观测转成持有）
+- 卖出移除：`quantfox watch remove <代码>`
 - 清单为空 → 不要臆造，告诉用户"先把你在看的/持有的加进 watch 清单"。
 
 **买卖是用户在支付宝手动操作的，本工具只做参谋、不碰钱**：
@@ -28,24 +28,24 @@ description: >-
 - 绝不声称"已帮你买入/卖出"——我们没有、也不该有交易权限。
 
 ## 闭环步骤
-1. **快扫**：`uv run quantfox watch check` → 返回 `watching`（含 buy_opportunity）与 `holding`（含 need_attention）两组。
+1. **快扫**：`quantfox watch check` → 返回 `watching`（含 buy_opportunity）与 `holding`（含 need_attention）两组。
 2. **都没触发**：直接回"✅ 观测的暂无买点、持仓的一切正常，无需动作"，附一句各只状态。**到此结束，别过度分析。**
-3. **观测组出现买点线索**：对该标的 `uv run quantfox evidence <代码>` + WebSearch 深析，判断是"真买点"还是"下跌趋势中的假便宜"；若确认，建议结合 position-sizer 分批建仓，别一把梭。
+3. **观测组出现买点线索**：对该标的 `quantfox evidence <代码>` + WebSearch 深析，判断是"真买点"还是"下跌趋势中的假便宜"；若确认，建议结合 position-sizer 分批建仓，别一把梭。
 4. **持有组信号**（分两层，**重在提前**）：
    - **留意（提前预警）**：还没大跌但估值高位/超买/动能转弱——提示"逢高减一部分、提高警惕"，别等跌了才动。这是"提前判断"的核心。
    - **需离场（确认触发）**：已浮亏熔断/大回撤/跌破MA60——深析是"该真离场"还是"正常波动别慌"；中长期下除非基本面恶化，减仓而非清仓也是选项。
 5. **诚实结尾**：非投资建议；提示"追涨杀跌、频繁看盘是中长期最大的敌人"。
 
 ## 关于定时 + 邮件推送（都是用户的选择，我不擅自建）
-- **定时前必须先配好邮箱**（否则定时跑了提醒也发不出去）：先 `uv run quantfox email show` 确认已配置、`uv run quantfox email test --to 你自己` 验证能收到；没配就引导用户先 `quantfox email config ...`。邮箱配置统一存全局 json（`~/.quantfox/email.json` 或 `$QUANTFOX_HOME/email.json`，权限 600、密码不打印），方便管理。
+- **定时前必须先配好邮箱**（否则定时跑了提醒也发不出去）：先 `quantfox email show` 确认已配置、`quantfox email test --to 你自己` 验证能收到；没配就引导用户先 `quantfox email config ...`。邮箱配置统一存全局 json（`~/.quantfox/email.json` 或 `$QUANTFOX_HOME/email.json`，权限 600、密码不打印），方便管理。
 - 想自动：邮箱就绪后，建议 `/schedule` 挂**周频**（中长期不必日频）调用本技能；节奏由用户定。
 - **邮件推送**：在**有买点或触发离场**时把摘要邮件发给他：
-  `uv run quantfox email send --to <邮箱> --subject "quantfox 提醒：X 出现买点/需离场" --body "<摘要>"`。
+  `quantfox email send --to <邮箱> --subject "quantfox 提醒：X 出现买点/需离场" --body "<摘要>"`。
   没触发就别发，别打扰。也可把 fund-analyze 的报告 HTML 作附件发出。
 - 不想：随口说"复查下"即可按需触发。**绝不**替用户偷偷创建定时任务或发邮件。
 
 ## 盘中异动预警（非盯盘，仅交易时段）
-- 场外基金**没有实时净值**（一天一个、晚上才出）。盘中只能**估算**：`uv run quantfox intraday <代码>` 用前十大重仓实时股价估今日大致涨跌（仅覆盖前十大、季度滞后、非官方）。黄金有实时价。
+- 场外基金**没有实时净值**（一天一个、晚上才出）。盘中只能**估算**：`quantfox intraday <代码>` 用前十大重仓实时股价估今日大致涨跌（仅覆盖前十大、季度滞后、非官方）。黄金有实时价。
 - 用途：**大跌大涨时给 heads-up**（如估算跌超 3% 且逼近熔断线），让用户有准备——**不是让他追涨杀跌**。异动才提，平时别刷。
 
 ## 铁律

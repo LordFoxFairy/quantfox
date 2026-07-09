@@ -19,10 +19,10 @@ description: >-
 
 1. **明确需求**：类型（股票/混合/债/指数/QDII/FOF）、风险偏好、赛道/主题、投资期限。含糊先问。
 2. **粗筛出候选池**：
-   `uv run quantfox screen --type <类型> --top 100`（要常青稳健加 `--consistent`：近1年&近3年都前25%）。
+   `quantfox screen --type <类型> --top 100`（要常青稳健加 `--consistent`：近1年&近3年都前25%）。
    得到按"长周期加权+一致性"打分的 Top-N（每只带 score、consistent、多周期收益）。
 3. **精筛降温（关键，别跳过）**：对候选池前 10-20 只逐一
-   `uv run quantfox evidence <代码> --format json`，检查：
+   `quantfox evidence <代码> --format json`，检查：
    - **估值分位**：`percentile.price_pct` 高（>0.85）= 已在高位，**降级**（别追高）。
    - **风险**：最大回撤过大、夏普过低 → 降级。
    - **持仓穿透**：若前几名全扎堆同一赛道（如全是半导体）→ 只留代表 1-2 只，**强制分散**，别给用户一篮子同质基金。

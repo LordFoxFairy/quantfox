@@ -14,7 +14,14 @@
 /plugin marketplace add LordFoxFairy/quantfox
 /plugin install quantfox@quantfox
 ```
-本地自测：`/plugin marketplace add .` 再 install。首次装引擎：`bash skills/fund-analyze/scripts/setup.sh`（或 `uv sync`）。
+本地自测：`/plugin marketplace add .` 再 install。
+
+**装技能 ≠ 装引擎**：`/plugin install` 只装技能（SOP）；`quantfox` 命令要单独装成全局：
+```bash
+bash skills/fund-analyze/scripts/setup.sh   # = uv tool install，装完任何目录都能 quantfox
+# 或直接： uv tool install .
+```
+装好后 `quantfox --help` 到处可用（若提示找不到命令，把 `~/.local/bin` 加进 PATH 或 `uv tool update-shell`）。
 
 ## 7 个技能（各自内部闭环，共用引擎；自然语言即可触发）
 | 技能 | 你说什么会触发 | 干什么 |

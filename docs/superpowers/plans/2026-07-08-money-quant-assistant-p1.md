@@ -1408,8 +1408,8 @@ Expected: 全部 PASS。
 
 Run:
 ```bash
-uv run quantfox evidence gold --format markdown
-uv run quantfox evidence 501018 --format json | head -40
+quantfox evidence gold --format markdown
+quantfox evidence 501018 --format json | head -40
 ```
 Expected: 打印出证据卡；若 akshare 接口报错，回 Task 3/6 按实际列名修正后重跑。把实际输出贴进完成报告。
 
