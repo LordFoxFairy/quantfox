@@ -262,10 +262,11 @@ def watch_check():
             r = {"status": "取价失败", "error": str(e)}
         (holding if h["status"] == "holding" else watching).append({"symbol": h["symbol"], **r})
     buy_now = [o["symbol"] for o in watching if o.get("status") == "可关注买点"]
-    exit_now = [o["symbol"] for o in holding if o.get("status") == "需关注"]
+    need_exit = [o["symbol"] for o in holding if o.get("status") == "需离场"]
+    early_warn = [o["symbol"] for o in holding if o.get("status") == "留意"]
     typer.echo(json.dumps({
         "watching": {"n": len(watching), "buy_opportunity": buy_now, "items": watching},
-        "holding": {"n": len(holding), "need_attention": exit_now, "items": holding},
+        "holding": {"n": len(holding), "need_exit": need_exit, "early_warning": early_warn, "items": holding},
     }, ensure_ascii=False, indent=2))
 
 

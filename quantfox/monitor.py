@@ -57,22 +57,35 @@ def check_holding(prices: pd.DataFrame, entry_price: float, entry_date: str,
         dd_from_peak = max_dd_since = 0.0
     ret_since = latest / entry_price - 1.0
     pct = price_percentile(prices, 3).get("price_pct")
-    ma60 = compute_indicators(prices)["ma"]["ma60"]
+    ind = compute_indicators(prices)
+    ma5, ma20, ma60 = ind["ma"]["ma5"], ind["ma"]["ma20"], ind["ma"]["ma60"]
+    rsi = ind["rsi"]["rsi12"]
+    macd_state = ind["macd"]["state"]
     below_ma60 = (latest < ma60) if ma60 else None
 
-    # 风险类触发 → "需关注"（真要动作的）
-    flags = []
+    # 确认离场（滞后，风险已兑现）——兜底止损
+    exit_flags = []
     if ret_since <= DRAWDOWN_TRIGGER:
-        flags.append(f"浮亏 {ret_since * 100:.0f}%，触发/接近熔断线（{DRAWDOWN_TRIGGER * 100:.0f}%）")
+        exit_flags.append(f"浮亏 {ret_since * 100:.0f}%，触发熔断线（{DRAWDOWN_TRIGGER * 100:.0f}%）")
     if dd_from_peak <= DRAWDOWN_TRIGGER:
-        flags.append(f"自持有期高点回撤 {dd_from_peak * 100:.0f}%")
+        exit_flags.append(f"自持有期高点回撤 {dd_from_peak * 100:.0f}%")
     if below_ma60:
-        flags.append("跌破 MA60（中期趋势转弱）")
-    # 软提示 → 不惊扰赢家（稳步上涨的健康持仓不应被误报"需关注"）
-    notes = []
-    if pct is not None and pct >= VALUATION_HIGH:
-        notes.append(f"已在近 3 年 {pct * 100:.0f}% 高位，可考虑逢高减仓/落袋部分")
+        exit_flags.append("跌破 MA60（中期趋势已转弱）")
 
+    # 提前预警（领先，大跌之前就示警）——主动减仓/提高警惕
+    early = []
+    if pct is not None and pct >= VALUATION_HIGH:
+        early.append(f"估值近 3 年 {pct * 100:.0f}% 高位，回调风险升高，考虑逢高减")
+    if rsi is not None and rsi >= 75:
+        early.append(f"RSI {rsi:.0f} 超买，短期过热")
+    if macd_state == "死叉":
+        early.append("MACD 死叉，动能转弱（早于跌破 MA60）")
+    if ma5 and ma20 and ma5 < ma20 and not below_ma60:
+        early.append("短期均线走弱（MA5<MA20），中期趋势或承压")
+    if ma60 and latest > ma60 * 1.3:
+        early.append(f"价格高出 MA60 约 {(latest / ma60 - 1) * 100:.0f}%，超涨易回归")
+
+    status = "需离场" if exit_flags else ("留意" if early else "正常持有")
     return {
         "latest": round(latest, 4),
         "latest_date": str(prices["date"].iloc[-1]),
@@ -81,7 +94,7 @@ def check_holding(prices: pd.DataFrame, entry_price: float, entry_date: str,
         "max_drawdown_since_entry": round(max_dd_since, 4),
         "valuation_pct_3y": round(pct, 4) if pct is not None else None,
         "below_ma60": below_ma60,
-        "flags": flags,
-        "notes": notes,
-        "status": "需关注" if flags else "正常持有",
+        "early_warnings": early,   # 提前判断（领先）
+        "exit_flags": exit_flags,  # 确认离场（滞后兜底）
+        "status": status,
     }

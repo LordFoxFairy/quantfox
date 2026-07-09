@@ -9,23 +9,32 @@ def _prices(vals):
     return pd.DataFrame({"date": dates, "value": [float(v) for v in vals]})
 
 
-def test_healthy_holding_no_flags():
-    # 买入后稳步上涨 → 正常持有
+def test_healthy_holding_no_exit():
+    # 买入后稳步上涨 → 无确认离场信号（估值高位可能给"留意"提前预警，但不该"需离场"）
     df = _prices([100 + i * 0.1 for i in range(300)])
     r = check_holding(df, entry_price=100.0, entry_date="2023-01-02")
-    assert r["status"] == "正常持有"
-    assert r["flags"] == []
+    assert r["exit_flags"] == []
+    assert r["status"] in ("正常持有", "留意")
     assert r["return_since_entry"] > 0
 
 
-def test_drawdown_triggers_flag():
-    # 涨到 130 再跌回 100 → 自高点回撤 -23%，触发
-    up = [100 + i for i in range(150)]        # 100→249
-    down = [249 - i for i in range(120)]      # 回落
+def test_high_valuation_is_early_warning_not_exit():
+    # 单调上涨到历史高位：提前预警(留意)，但没跌，不该"需离场"
+    df = _prices([100 + i for i in range(300)])
+    r = check_holding(df, entry_price=100.0, entry_date="2023-01-02")
+    assert r["exit_flags"] == []
+    assert r["status"] == "留意"
+    assert any("高位" in w for w in r["early_warnings"])
+
+
+def test_drawdown_triggers_exit():
+    # 涨到高点再跌回 → 自高点回撤触发确认离场
+    up = [100 + i for i in range(150)]
+    down = [249 - i for i in range(120)]
     df = _prices(up + down)
     r = check_holding(df, entry_price=100.0, entry_date="2023-01-02")
-    assert r["status"] == "需关注"
-    assert any("回撤" in f or "熔断" in f for f in r["flags"])
+    assert r["status"] == "需离场"
+    assert any("回撤" in f or "熔断" in f for f in r["exit_flags"])
 
 
 def test_candidate_low_valuation_is_buy_opportunity():
