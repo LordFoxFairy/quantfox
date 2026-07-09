@@ -19,8 +19,14 @@
 - [x] **大盘估值锚**（2026-07-09）：`quantfox market-valuation`（全A股近10年估值分位），框架 v7 纳入判断。
 - [x] **报告离线化**（2026-07-09）：内联 echarts.min.js，报告为零外部依赖单文件，Playwright 验证渲染正常；并加"情景分析"板块。
 
+- [x] **诚实修正 + 历史回测**（2026-07-09，回应两位大佬 code review）：
+  - outcome 扣交易成本、edge_vs_baserate 去牛市虚高、幸存者偏差警示、框架 v8 重定 KPI（见前）。
+  - **`quantfox backtest`**：机械规则基线回测（valuation/trend/combo），point-in-time + 扣成本 + 对比基率与买入持有 + 策略夏普/回撤——**上线前就有的样本外战绩基线**（非 LLM 判断的回测，LLM 应超越）。
+  - 修 bug：log-signal 的 schema_version 与证据卡对齐（2.0）；新增 `--evidence-file` 冻结证据快照，fund-analyze SOP 存档时传入。
+
 ### 后续（未开始）
-- [ ] **P2**：每日 `loop` 定时（headless `--llm`）、回测。
+- [ ] review 口径细分（买入胜率 vs 回避胜率 vs 策略净值胜率）——回测已按此口径，live review 可跟进。
+- [ ] **P2**：每日 `loop` 定时（headless `--llm`）。
 - [ ] **P3**：正式对外发布。
 
 - [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。

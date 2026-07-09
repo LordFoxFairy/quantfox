@@ -143,16 +143,34 @@ def log_signal(
     type: str = typer.Option("otc_fund", help="otc_fund 或 gold"),
     horizons: str = typer.Option("5,20,60", help="评估周期（交易日），逗号分隔"),
     rationale: str = typer.Option("", help="一句话理由"),
-    evidence_json: str = typer.Option("{}", help="证据卡 JSON 快照"),
+    evidence_json: str = typer.Option("{}", help="证据卡 JSON 快照（内联）"),
+    evidence_file: str = typer.Option(None, help="证据卡 JSON 文件路径（优先，用于冻结当时证据）"),
 ):
-    """把本次信号 + 当时证据存进预测账本。"""
+    """把本次信号 + 当时证据快照存进预测账本。"""
+    from .evidence import SCHEMA_VERSION
+
+    if evidence_file:
+        evidence_json = Path(evidence_file).read_text(encoding="utf-8")
     pid = _ledger().log_signal(
         symbol=symbol, type=type, signal=signal, signal_numeric=signal_numeric,
         confidence=confidence, horizons=[int(x) for x in horizons.split(",")],
         price_ref=price_ref, evidence_json=evidence_json, rationale=rationale,
-        framework_version=framework_version(), schema_version="1.0", ts=ts,
+        framework_version=framework_version(), schema_version=SCHEMA_VERSION, ts=ts,
     )
     typer.echo(json.dumps({"prediction_id": pid}))
+
+
+@app.command()
+def backtest(query: str,
+             rule: str = typer.Option("valuation", help="机械规则：valuation/trend/combo"),
+             horizon: int = typer.Option(20, help="持有期（交易日）")):
+    """历史回测（机械规则基线，非 LLM）：point-in-time、扣成本、对比基率与买入持有。"""
+    from .backtest import backtest as run_bt
+
+    asset = resolve(query)
+    prices = _prices_for(asset)
+    typer.echo(json.dumps(run_bt(prices, rule=rule, horizon=horizon, asset_type=asset.type),
+                          ensure_ascii=False, indent=2))
 
 
 @app.command()

@@ -11,6 +11,9 @@ from .metrics import compute_metrics
 from .percentile import price_percentile
 
 
+SCHEMA_VERSION = "2.0"
+
+
 class PriceBlock(BaseModel):
     latest: Optional[float] = None
     latest_date: Optional[str] = None
@@ -27,7 +30,7 @@ class EvidenceCard(BaseModel):
     """证据卡。专业主料：profile(基本面) + metrics(风险绩效)；technical 指标为辅助。
     舆情不放这里——由 CC agent 自己用 WebSearch 搜最新的并鉴别。"""
 
-    schema_version: str = "2.0"
+    schema_version: str = SCHEMA_VERSION
     asset: Asset
     price: PriceBlock = PriceBlock()
     returns: dict = {}

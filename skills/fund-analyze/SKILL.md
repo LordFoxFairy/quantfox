@@ -33,10 +33,12 @@ description: >-
    - 打开：mac `open <路径>`；linux `xdg-open <路径>`；win `start <路径>`。失败就把绝对路径给用户让其手动打开。
 8. **存档预测**（复盘地基，别漏）：
    ```
+   # 先把第3步的证据卡 JSON 存文件（如 /tmp/ev.json），冻结"当时为什么这么判"，供日后复盘可信
+   uv run quantfox evidence <标的> --format json > /tmp/ev.json
    uv run quantfox log-signal --symbol <代码> --type <otc_fund|gold> \
      --signal <档位> --signal-numeric <2..-2> --confidence <0-1> \
      --price-ref <证据卡最新价> --ts <今天YYYY-MM-DD> --horizons 5,20,60 \
-     --rationale "<一句话理由>"
+     --rationale "<一句话理由>" --evidence-file /tmp/ev.json
    ```
 9. **对话里也给结论**：结论先行（信号+信心）+ 四维小结 + 一句风险 + 报告已打开提示 + 免责。
 
