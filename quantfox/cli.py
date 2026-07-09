@@ -90,6 +90,41 @@ def market_valuation():
 
 
 @app.command()
+def intraday(query: str):
+    """盘中异动预警（非盯盘）：黄金用实时价；基金用前十大重仓实时估算今日大致涨跌。"""
+    from .intraday import estimate_fund_intraday, gold_intraday
+
+    asset = resolve(query)
+    if asset.type == "gold":
+        try:
+            import akshare as ak
+
+            out = gold_intraday(ak.spot_quotations_sge(symbol=asset.symbol))
+        except Exception as e:  # noqa
+            out = {"available": False, "error": str(e), "note": "盘中黄金行情暂不可用"}
+    else:
+        from .intraday import official_fund_estimate
+
+        out = {"available": False}
+        try:  # 主源：数据商官方盘中估算（全持仓，最准）
+            import akshare as ak
+
+            out = official_fund_estimate(ak.fund_value_estimation_em(symbol="全部"), asset.symbol)
+        except Exception:  # noqa
+            out = {"available": False}
+        if not out.get("available"):  # 降级：自算前十大重仓
+            top = (_profile_for(asset).get("holdings") or {}).get("top", [])
+            try:
+                from .intraday import _default_stock_quotes
+
+                quotes = _default_stock_quotes([h["code"] for h in top if h.get("code")])
+            except Exception:  # noqa
+                quotes = {}
+            out = estimate_fund_intraday(top, quotes)
+    typer.echo(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+@app.command()
 def screen(type: str = typer.Option("股票型", help="基金类型：全部/股票型/混合型/债券型/指数型/QDII/FOF"),
            top: int = typer.Option(50, help="返回前 N 名"),
            consistent: bool = typer.Option(False, "--consistent", help="只要近1年&近3年都前25%的常青基金")):
