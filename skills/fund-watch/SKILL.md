@@ -19,9 +19,13 @@ description: >-
 
 ## 用户如何维护清单（opt-in）
 - 观测一只：`uv run quantfox watch add <代码> [--target-price 目标价]`
-- 真买入了：`uv run quantfox watch buy <代码> --entry-price <价> --entry-date <日期>`（会把观测转成持有）
+- 真买入了：`uv run quantfox watch buy <代码> --entry-price <支付宝真实净值>`（`--entry-date` 可选，默认今天；会把观测转成持有）
 - 卖出移除：`uv run quantfox watch remove <代码>`
 - 清单为空 → 不要臆造，告诉用户"先把你在看的/持有的加进 watch 清单"。
+
+**买卖是用户在支付宝手动操作的，本工具只做参谋、不碰钱**：
+- 建议买/卖后，提醒用户**去支付宝自己下单**；成交后把**支付宝确认的真实净值/日期**回填进 `watch buy`（基金 T+1，成交是次日确认净值，填这个真值复盘才不作弊）。
+- 绝不声称"已帮你买入/卖出"——我们没有、也不该有交易权限。
 
 ## 闭环步骤
 1. **快扫**：`uv run quantfox watch check` → 返回 `watching`（含 buy_opportunity）与 `holding`（含 need_attention）两组。
@@ -33,8 +37,9 @@ description: >-
 5. **诚实结尾**：非投资建议；提示"追涨杀跌、频繁看盘是中长期最大的敌人"。
 
 ## 关于定时 + 邮件推送（都是用户的选择，我不擅自建）
-- 想自动：建议 `/schedule` 挂**周频**（中长期不必日频）调用本技能；节奏由用户定。
-- **邮件推送**：若用户配了邮箱（`quantfox email config ...`），可在**有买点或触发离场**时把摘要邮件发给他：
+- **定时前必须先配好邮箱**（否则定时跑了提醒也发不出去）：先 `uv run quantfox email show` 确认已配置、`uv run quantfox email test --to 你自己` 验证能收到；没配就引导用户先 `quantfox email config ...`。邮箱配置统一存全局 json（`~/.quantfox/email.json` 或 `$QUANTFOX_HOME/email.json`，权限 600、密码不打印），方便管理。
+- 想自动：邮箱就绪后，建议 `/schedule` 挂**周频**（中长期不必日频）调用本技能；节奏由用户定。
+- **邮件推送**：在**有买点或触发离场**时把摘要邮件发给他：
   `uv run quantfox email send --to <邮箱> --subject "quantfox 提醒：X 出现买点/需离场" --body "<摘要>"`。
   没触发就别发，别打扰。也可把 fund-analyze 的报告 HTML 作附件发出。
 - 不想：随口说"复查下"即可按需触发。**绝不**替用户偷偷创建定时任务或发邮件。

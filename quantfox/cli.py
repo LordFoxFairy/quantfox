@@ -256,6 +256,21 @@ def email_config(smtp_host: str = typer.Option(..., help="如 smtp.gmail.com / s
     typer.echo(json.dumps({"saved": str(p), "note": "密码仅存本地，未打印"}, ensure_ascii=False))
 
 
+@email_app.command("show")
+def email_show():
+    """查看当前邮箱配置（密码脱敏），方便管理。"""
+    from .notify import email_config_path, load_email_config
+
+    cfg = load_email_config()
+    if not cfg:
+        typer.echo(json.dumps({"configured": False, "path": str(email_config_path()),
+                               "note": "尚未配置，先运行 quantfox email config ..."}, ensure_ascii=False))
+        return
+    masked = {**cfg, "password": "******"}
+    typer.echo(json.dumps({"configured": True, "path": str(email_config_path()), "config": masked},
+                          ensure_ascii=False, indent=2))
+
+
 @email_app.command("send")
 def email_send(to: str = typer.Option(..., help="收件邮箱"),
                subject: str = typer.Option(..., help="标题"),
@@ -340,12 +355,13 @@ def watch_add(symbol: str,
 
 @watch_app.command("buy")
 def watch_buy(symbol: str,
-              entry_price: float = typer.Option(..., help="买入价"),
-              entry_date: str = typer.Option(..., help="买入日期 YYYY-MM-DD")):
+              entry_price: float = typer.Option(..., help="买入价（支付宝确认的真实净值）"),
+              entry_date: str = typer.Option(None, help="买入日期 YYYY-MM-DD，默认今天")):
     """标记为【已买入·持有中】（可对观测中的标的转态，或直接新增持仓）。"""
     asset = resolve(symbol)
+    entry_date = entry_date or _dt.date.today().isoformat()
     _ledger().mark_bought(asset.symbol, asset.type, entry_price, entry_date)
-    typer.echo(json.dumps({"holding": asset.symbol}, ensure_ascii=False))
+    typer.echo(json.dumps({"holding": asset.symbol, "entry_date": entry_date}, ensure_ascii=False))
 
 
 @watch_app.command("list")
