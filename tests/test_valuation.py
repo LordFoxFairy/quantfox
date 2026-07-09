@@ -19,6 +19,20 @@ def test_market_valuation_latest_with_percentile():
     assert v["level"] == "偏贵"  # 0.6-0.8
 
 
+def test_market_valuation_sorts_dates_and_normalizes_percent_units():
+    def fetcher():
+        return pd.DataFrame({
+            "date": ["2026-07-08", "2026-07-09"],
+            "middlePETTM": [38.76, 39.66],
+            "quantileInRecent10YearsMiddlePeTtm": [0.64, 64.0],
+        }).iloc[::-1]
+
+    v = market_valuation(fetcher=fetcher)
+    assert v["date"] == "2026-07-09"
+    assert v["percentile_10y"] == 0.64
+    assert v["level"] == "偏贵"
+
+
 def test_market_valuation_levels():
     def f(pct):
         return lambda: pd.DataFrame({"date": ["2026-07-08"], "middlePETTM": [30.0],

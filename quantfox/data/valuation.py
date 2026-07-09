@@ -30,13 +30,19 @@ def _level(pct):
 def market_valuation(fetcher=None) -> dict:
     fetcher = fetcher or _default_fetcher
     df = fetcher()
+    if "date" in df.columns:
+        df = df.copy()
+        df["date"] = pd.to_datetime(df["date"], errors="coerce")
+        df = df.sort_values("date")
     row = df.dropna(subset=[_PCT_COL]).iloc[-1] if _PCT_COL in df.columns and df[_PCT_COL].notna().any() else None
     if row is None:
         return {"available": False, "note": "无估值分位数据"}
     pct = float(row[_PCT_COL])
+    if pct > 1:
+        pct = pct / 100.0
     return {
         "available": True,
-        "date": str(row["date"]),
+        "date": row["date"].date().isoformat() if hasattr(row["date"], "date") else str(row["date"]),
         "pe_ttm": round(float(row[_PE_COL]), 2),
         "percentile_10y": round(pct, 4),
         "level": _level(pct),

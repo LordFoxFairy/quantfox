@@ -4,6 +4,8 @@
 黄金无基金经理/持仓/评级，返回 applicable=False。
 依赖注入 fetchers 便于离线测试。
 """
+import re
+
 import pandas as pd
 
 from .resolve import Asset
@@ -62,9 +64,20 @@ def _parse_basic(df: pd.DataFrame) -> dict:
     }
 
 
+def _quarter_key(text):
+    m = re.search(r"(\d{4})年(\d)季度", str(text))
+    if not m:
+        return (0, 0)
+    return int(m.group(1)), int(m.group(2))
+
+
 def _top_holdings(df: pd.DataFrame, n: int = 10) -> dict:
     if df is None or not len(df):
         return {"as_of": None, "top": []}
+    if "季度" in df.columns:
+        latest = max(df["季度"].dropna().astype(str), key=_quarter_key, default=None)
+        if latest:
+            df = df[df["季度"].astype(str) == latest]
     df = df.sort_values("占净值比例", ascending=False).head(n)
     as_of = str(df.iloc[0]["季度"]) if "季度" in df.columns else None
     top = [

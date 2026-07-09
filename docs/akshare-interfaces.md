@@ -3,9 +3,11 @@
 数据层严格按此写。列名如未来 akshare 变更，改 `money/data/prices.py` 与 `money/data/news.py` 的候选列表。
 
 ## 场外基金历史净值
-- 函数：`ak.fund_open_fund_info_em(symbol="<6位代码>", indicator="单位净值走势")`
-- 返回列：`['净值日期', '单位净值', '日增长率']`
-- 映射：`净值日期 -> date`，`单位净值 -> value`
+- 首选函数：`ak.fund_open_fund_info_em(symbol="<6位代码>", indicator="累计净值走势")`
+- 回退函数：`ak.fund_open_fund_info_em(symbol="<6位代码>", indicator="单位净值走势")`
+- 返回列：`['净值日期', '累计净值']` 或 `['净值日期', '单位净值', '日增长率']`
+- 映射：`净值日期 -> date`，优先 `累计净值 -> value`；无累计净值时回退 `单位净值 -> value`
+- 原因：绩效、回撤、outcome 需要总回报口径；单位净值会在分红基金上低估收益、夸大回撤。
 
 ## 黄金 Au99.99（上海金交所现货）
 - 函数：`ak.spot_hist_sge(symbol="Au99.99")`

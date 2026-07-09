@@ -30,6 +30,20 @@ def test_log_and_track(tmp_path):
     assert tr["edge_vs_baserate"] == 0.0
 
 
+def test_review_counts_predictions_separately_from_horizons(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    pid = led.log_signal(
+        symbol="501018", type="otc_fund", signal="买", signal_numeric=1,
+        confidence=0.6, horizons=[5, 20], price_ref=100.0, evidence_json="{}",
+        rationale="test", framework_version="1", schema_version="1.0",
+        ts="2023-01-01",
+    )
+    led.compute_outcomes(pid, _prices(100.0, 40))
+    r = led.review("501018")
+    assert r["n"] == 1
+    assert r["n_outcomes"] == 2
+
+
 def test_calibration_buckets_by_confidence(tmp_path):
     led = Ledger(tmp_path / "t.db")
     # 高信心(0.9) 买入，价格上涨 → 命中
@@ -58,3 +72,17 @@ def test_append_only_no_overwrite(tmp_path):
         framework_version="1", schema_version="1.0", ts="2023-01-02",
     )
     assert b == a + 1
+
+
+def test_log_signal_records_server_created_at(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    pid = led.log_signal(
+        symbol="X", type="gold", signal="观望", signal_numeric=0, confidence=0.5,
+        horizons=[5], price_ref=1.0, evidence_json="{}", rationale="",
+        framework_version="1", schema_version="1.0", ts="2023-01-01",
+    )
+    c = led._conn()
+    row = c.execute("SELECT ts, created_at FROM predictions WHERE id=?", (pid,)).fetchone()
+    assert row["ts"] == "2023-01-01"
+    assert row["created_at"]
+    assert row["created_at"] != row["ts"]

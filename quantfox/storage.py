@@ -1,5 +1,6 @@
 import json
 import sqlite3
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
@@ -35,7 +36,8 @@ class Ledger:
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               ts TEXT, symbol TEXT, type TEXT, signal TEXT, signal_numeric INTEGER,
               confidence REAL, horizons TEXT, price_ref REAL, evidence_json TEXT,
-              rationale TEXT, framework_version TEXT, schema_version TEXT
+              rationale TEXT, framework_version TEXT, schema_version TEXT,
+              created_at TEXT
             );
             CREATE TABLE IF NOT EXISTS outcomes (
               prediction_id INTEGER, horizon INTEGER,
@@ -48,6 +50,9 @@ class Ledger:
             );
             """
         )
+        cols = [r["name"] for r in c.execute("PRAGMA table_info(predictions)").fetchall()]
+        if "created_at" not in cols:
+            c.execute("ALTER TABLE predictions ADD COLUMN created_at TEXT")
         c.commit()
 
     # --- 监控清单（两态：watching 观测找买点 / holding 持有看离场）---
@@ -91,10 +96,11 @@ class Ledger:
         c = self._conn()
         cur = c.execute(
             "INSERT INTO predictions (ts,symbol,type,signal,signal_numeric,confidence,horizons,"
-            "price_ref,evidence_json,rationale,framework_version,schema_version) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
+            "price_ref,evidence_json,rationale,framework_version,schema_version,created_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (ts, symbol, type, signal, signal_numeric, confidence, json.dumps(horizons),
-             price_ref, evidence_json, rationale, framework_version, schema_version),
+             price_ref, evidence_json, rationale, framework_version, schema_version,
+             datetime.now(timezone.utc).isoformat()),
         )
         c.commit()
         return cur.lastrowid
@@ -171,7 +177,7 @@ class Ledger:
 
     def review(self, symbol=None, since_version=None):
         c = self._conn()
-        q = ("SELECT o.hit, o.realized_return, o.base_up, p.signal_numeric AS sn FROM outcomes o "
+        q = ("SELECT o.prediction_id, o.hit, o.realized_return, o.base_up, p.signal_numeric AS sn FROM outcomes o "
              "JOIN predictions p ON p.id=o.prediction_id WHERE 1=1")
         args = []
         if symbol:
@@ -184,15 +190,18 @@ class Ledger:
         if not rows:
             return {"n": 0, "note": "暂无已到期的预测，数据不足"}
         hit_rate, avg_net, base_up, edge = self._agg(rows)
+        n_predictions = len({r["prediction_id"] for r in rows})
 
         def sub(rs):
             if not rs:
                 return None
             hr, net, bu, e = self._agg(rs)
-            return {"n": len(rs), "hit_rate": round(hr, 4), "net_return": net, "edge_vs_baserate": e}
+            return {"n": len({r["prediction_id"] for r in rs}), "n_outcomes": len(rs),
+                    "hit_rate": round(hr, 4), "net_return": net, "edge_vs_baserate": e}
 
         return {
-            "n": len(rows),
+            "n": n_predictions,
+            "n_outcomes": len(rows),
             "hit_rate": round(hit_rate, 4),
             "net_return": avg_net,
             "base_up_rate": base_up,

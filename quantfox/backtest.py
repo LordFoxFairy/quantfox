@@ -62,22 +62,25 @@ def backtest(prices: pd.DataFrame, rule: str = "valuation", horizon: int = 20,
         raise ValueError(f"未知规则 {rule}，可选 {list(RULES)}")
     s = prices["value"].reset_index(drop=True).astype(float)
     n = len(s)
-    if n < warmup + horizon + 1:
+    if n < warmup + horizon + 2:
         return {"rule": rule, "horizon": horizon, "n_windows": 0,
                 "note": "历史数据不足以回测"}
 
-    # 全序列 h 期前瞻上涨基率（point-in-time 无关，用于对照"跟涨"）
-    fwd_all = s.shift(-horizon) / s - 1.0
-    base_up = float((fwd_all.dropna() > 0).mean())
     cost = round_trip_cost(horizon, asset_type)
 
     buy_rets, buy_hits, avoid_hits = [], [], []
     avoid_n = 0
+    base_hits = []
     period_rets = []  # 非重叠窗口，构建策略净值
     t = warmup
-    while t + horizon < n:
+    last_exit = warmup + 1
+    while t + 1 + horizon < n:
         sig = fn(s.iloc[:t + 1])  # 只用截至 t 的数据
-        fwd = float(s.iloc[t + horizon] / s.iloc[t] - 1.0)
+        entry_i = t + 1
+        exit_i = entry_i + horizon
+        fwd = float(s.iloc[exit_i] / s.iloc[entry_i] - 1.0)
+        base_hits.append(1 if fwd - cost > 0 else 0)
+        last_exit = exit_i
         if sig > 0:
             net = fwd - cost
             buy_rets.append(net)
@@ -95,11 +98,13 @@ def backtest(prices: pd.DataFrame, rule: str = "valuation", horizon: int = 20,
     equity = pd.concat([pd.Series([1.0]), (1.0 + prets).cumprod()], ignore_index=True) \
         if period_rets else pd.Series([1.0])
     ann = 252 / horizon
-    sharpe = float(prets.mean() / prets.std() * (ann ** 0.5)) if prets.std() else None
+    std = prets.std()
+    sharpe = float(prets.mean() / std * (ann ** 0.5)) if len(prets) >= 2 and pd.notna(std) and std else None
     buy_hr = (sum(buy_hits) / len(buy_hits)) if buy_hits else None
-    bh = float(s.iloc[t] / s.iloc[warmup] - 1.0)  # 同期买入持有
+    base_up = sum(base_hits) / len(base_hits) if base_hits else 0.0
+    bh = float(s.iloc[last_exit] / s.iloc[warmup + 1] - 1.0)  # 同期可成交买入持有
     # 标的真实日度最大回撤（策略净值只按窗口端点算，会低估路径回撤，故补这个真实风险参照）
-    asset_dd = _max_drawdown(s.iloc[warmup:t + 1])
+    asset_dd = _max_drawdown(s.iloc[warmup + 1:last_exit + 1])
 
     return {
         "rule": rule, "horizon": horizon, "n_windows": len(period_rets),
@@ -119,7 +124,7 @@ def backtest(prices: pd.DataFrame, rule: str = "valuation", horizon: int = 20,
             "asset_max_drawdown_daily": round(asset_dd, 4),
         },
         "buy_and_hold_return": round(bh, 4),
-        "note": ("机械规则基线（非 LLM 判断的回测）；point-in-time、已扣成本。"
+        "note": ("机械规则基线（非 LLM 判断的回测）；信号日后一交易日成交、point-in-time、已扣成本。"
                  "策略回撤按窗口端点算会低估路径回撤，asset_max_drawdown_daily 是标的真实日度回撤参照。"
                  "edge>0 且扣成本后 net>0、夏普/回撤优于买入持有才算规则有效；否则只是跟涨。LLM 应以此为下限争取超越。"),
     }

@@ -50,6 +50,23 @@ def test_fund_profile_full():
     assert p["rating"]["type"] == "混合型-灵活"
 
 
+def test_fund_profile_uses_single_latest_holding_quarter():
+    fetchers = _fetchers()
+    holdings = pd.DataFrame({
+        "股票代码": ["000001", "000002", "000003"],
+        "股票名称": ["旧季度高仓", "新季度A", "新季度B"],
+        "占净值比例": [40.0, 3.0, 2.0],
+        "季度": ["2024年1季度股票投资明细", "2024年2季度股票投资明细", "2024年2季度股票投资明细"],
+    })
+    fetchers["holdings"] = lambda code: holdings
+
+    p = load_profile(Asset(symbol="000001", type="otc_fund"), fetchers=fetchers)
+
+    assert p["holdings"]["as_of"] == "2024年2季度股票投资明细"
+    assert [h["name"] for h in p["holdings"]["top"]] == ["新季度A", "新季度B"]
+    assert p["holdings"]["top10_concentration"] == 5.0
+
+
 def test_fund_profile_resilient_to_fetch_error():
     def _boom(code):
         raise RuntimeError("net down")

@@ -4,7 +4,7 @@ from .resolve import Asset
 
 # 列名映射（实测见 docs/akshare-interfaces.md）
 _FUND_DATE_COLS = ["净值日期", "date"]
-_FUND_VALUE_COLS = ["单位净值", "value"]
+_FUND_VALUE_COLS = ["累计净值", "复权单位净值", "单位净值", "value"]
 _GOLD_DATE_COLS = ["date", "日期"]
 _GOLD_CLOSE_COLS = ["close", "收盘价", "收盘"]
 _GOLD_OPEN_COLS = ["open", "开盘价", "开盘"]
@@ -21,10 +21,28 @@ def _pick(df: pd.DataFrame, candidates, required=True):
     return None
 
 
+def _normalize_dates(values) -> pd.Series:
+    s = pd.Series(values)
+    raw = s.dropna()
+    if raw.empty:
+        return pd.to_datetime(s, errors="coerce").dt.strftime("%Y-%m-%d")
+
+    as_text = raw.astype(str).str.strip()
+    if as_text.str.fullmatch(r"\d{8}").all():
+        parsed = pd.to_datetime(s.astype(str).str.strip(), format="%Y%m%d", errors="coerce")
+    elif as_text.str.fullmatch(r"\d{13}").all():
+        parsed = pd.to_datetime(pd.to_numeric(s, errors="coerce"), unit="ms", errors="coerce")
+    elif as_text.str.fullmatch(r"\d{10}").all():
+        parsed = pd.to_datetime(pd.to_numeric(s, errors="coerce"), unit="s", errors="coerce")
+    else:
+        parsed = pd.to_datetime(s, errors="coerce")
+    return parsed.dt.strftime("%Y-%m-%d")
+
+
 def _normalize_close_only(df: pd.DataFrame, date_cols, value_cols) -> pd.DataFrame:
     d, v = _pick(df, date_cols), _pick(df, value_cols)
     out = df[[d, v]].rename(columns={d: "date", v: "value"}).copy()
-    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+    out["date"] = _normalize_dates(out["date"])
     out["value"] = out["value"].astype(float)
     out = out.dropna(subset=["date", "value"]).sort_values("date").reset_index(drop=True)
     return out[["date", "value"]]
@@ -43,7 +61,7 @@ def _normalize_ohlc(df: pd.DataFrame) -> pd.DataFrame:
             cols[src] = dst
             keep.append(src)
     out = df[keep].rename(columns=cols).copy()
-    out["date"] = pd.to_datetime(out["date"]).dt.strftime("%Y-%m-%d")
+    out["date"] = _normalize_dates(out["date"])
     for col in ("value", "open", "high", "low"):
         if col in out.columns:
             out[col] = out[col].astype(float)
@@ -56,7 +74,10 @@ def _default_fetcher(asset: Asset) -> pd.DataFrame:
     import akshare as ak
 
     if asset.type == "otc_fund":
-        return ak.fund_open_fund_info_em(symbol=asset.symbol, indicator="单位净值走势")
+        try:
+            return ak.fund_open_fund_info_em(symbol=asset.symbol, indicator="累计净值走势")
+        except Exception:  # noqa
+            return ak.fund_open_fund_info_em(symbol=asset.symbol, indicator="单位净值走势")
     return ak.spot_hist_sge(symbol=asset.symbol)
 
 

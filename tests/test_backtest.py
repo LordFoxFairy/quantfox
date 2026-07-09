@@ -35,3 +35,18 @@ def test_monotonic_uptrend_baserate_one():
     rt = backtest(_df([100 + i for i in range(1200)]), rule="trend", horizon=20)
     if rt["buy"]["hit_rate"] is not None:
         assert rt["buy"]["edge_vs_baserate"] <= 0.01
+
+
+def test_backtest_enters_after_signal_day_close():
+    vals = [100.0] * 61 + [200.0] * 30
+    r = backtest(_df(vals), rule="trend", horizon=20, warmup=60, asset_type="gold")
+    assert r["buy"]["n"] == 1
+    assert r["buy"]["avg_net_return"] == -0.004
+    assert r["strategy"]["total_return"] == -0.004
+    assert r["strategy"]["sharpe"] is None
+
+
+def test_baserate_uses_same_executable_windows_as_strategy():
+    vals = [100.0 + i for i in range(61)] + [160.0 - i for i in range(40)]
+    r = backtest(_df(vals), rule="trend", horizon=10, warmup=60, asset_type="gold")
+    assert r["base_up_rate"] == 0.0

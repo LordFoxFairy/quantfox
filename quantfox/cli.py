@@ -16,6 +16,8 @@ from .storage import Ledger
 
 app = typer.Typer(help="场外基金与黄金的量化证据卡 + Claude 决策助手", add_completion=False)
 
+SIGNAL_NUMERIC = {"强买": 2, "买": 1, "观望": 0, "减": -1, "回避": -2}
+
 
 def _prices_for(asset):
     return load_prices(asset)
@@ -33,6 +35,41 @@ def _empty_prices():
     import pandas as pd
 
     return pd.DataFrame({"date": [], "value": []})
+
+
+def _parse_horizons(raw: str) -> list[int]:
+    try:
+        values = [int(x.strip()) for x in raw.split(",") if x.strip()]
+    except ValueError as e:
+        raise typer.BadParameter("horizons 必须是逗号分隔的正整数") from e
+    if not values or any(x <= 0 for x in values):
+        raise typer.BadParameter("horizons 必须至少包含一个正整数")
+    return values
+
+
+def _validate_signal(signal: str, signal_numeric: int):
+    expected = SIGNAL_NUMERIC.get(signal)
+    if expected is None:
+        raise typer.BadParameter(f"signal 必须是 {list(SIGNAL_NUMERIC)}")
+    if signal_numeric != expected:
+        raise typer.BadParameter(f"signal_numeric 与 signal 不一致：{signal} 应为 {expected}")
+
+
+def _validate_evidence_snapshot(evidence_json: str, symbol: str):
+    try:
+        evidence = json.loads(evidence_json)
+    except json.JSONDecodeError as e:
+        raise typer.BadParameter("evidence_json 必须是合法 JSON") from e
+    if not isinstance(evidence, dict) or not evidence:
+        raise typer.BadParameter("evidence_json/evidence_file 必须提供证据卡快照")
+    if not evidence.get("schema_version"):
+        raise typer.BadParameter("evidence 快照缺少 schema_version")
+    asset = evidence.get("asset") or {}
+    if asset.get("symbol") and str(asset.get("symbol")) != str(symbol):
+        raise typer.BadParameter("evidence 快照的 asset.symbol 与 --symbol 不一致")
+    price = evidence.get("price") or {}
+    if price.get("latest") is None or not price.get("latest_date"):
+        raise typer.BadParameter("evidence 快照缺少 price.latest/latest_date")
 
 
 @app.command()
@@ -186,11 +223,14 @@ def log_signal(
 
     if not 0.0 <= confidence <= 1.0:
         raise typer.BadParameter(f"confidence 必须是 0-1（不是 0-100）；收到 {confidence}")
+    _validate_signal(signal, signal_numeric)
     if evidence_file:
         evidence_json = Path(evidence_file).read_text(encoding="utf-8")
+    _validate_evidence_snapshot(evidence_json, symbol)
+    parsed_horizons = _parse_horizons(horizons)
     pid = _ledger().log_signal(
         symbol=symbol, type=type, signal=signal, signal_numeric=signal_numeric,
-        confidence=confidence, horizons=[int(x) for x in horizons.split(",")],
+        confidence=confidence, horizons=parsed_horizons,
         price_ref=price_ref, evidence_json=evidence_json, rationale=rationale,
         framework_version=framework_version(), schema_version=SCHEMA_VERSION, ts=ts,
     )
