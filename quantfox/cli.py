@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from .config import data_dir, ledger_path
+from .config import ledger_path, reports_dir
 from .data.fund_profile import load_profile
 from .data.prices import load_prices
 from .data.resolve import resolve
@@ -228,9 +228,7 @@ def screen_report(type: str = typer.Option("股票型", help="基金类型"),
     if out:
         path = Path(out)
     else:
-        d = data_dir() / "reports"
-        d.mkdir(parents=True, exist_ok=True)
-        path = d / f"screen_{type}_{_dt.date.today().isoformat()}.html"
+        path = reports_dir() / f"screen_{type}_{_dt.date.today().isoformat()}.html"
     path.write_text(html, encoding="utf-8")
     result = {"html": str(path), "count": len(cands)}
     if pdf:
@@ -258,9 +256,7 @@ def report(query: str,
     if out:
         path = Path(out)
     else:
-        d = data_dir() / "reports"
-        d.mkdir(parents=True, exist_ok=True)
-        path = d / f"{asset.symbol}_{_dt.date.today().isoformat()}.html"
+        path = reports_dir() / f"{asset.symbol}_{_dt.date.today().isoformat()}.html"
     path.write_text(html, encoding="utf-8")
     result = {"html": str(path)}
     if pdf:

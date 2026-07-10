@@ -1,6 +1,6 @@
 """邮件推送（用户自配自己的邮箱）。纯标准库 smtplib，无新依赖。
 
-安全：配置存本地 data_dir/email.json（在 .gitignore 的 /data 或 ~/.quantfox 下），
+安全：配置存本地 data_dir/config.json（旧 email.json 自动迁移）（在 .gitignore 的 /data 或 ~/.quantfox 下），
 不进仓库、不打印密码；文件权限 600。用户填自己邮箱的 SMTP + 授权码（Gmail/163 等需"应用专用密码"）。
 """
 import json
@@ -9,26 +9,29 @@ import ssl
 from email.message import EmailMessage
 from pathlib import Path
 
-from .config import data_dir
-
-
 def email_config_path() -> Path:
-    return data_dir() / "email.json"
+    from .config import config_path
+
+    return config_path()
 
 
 def save_email_config(cfg: dict) -> Path:
-    p = email_config_path()
-    p.write_text(json.dumps(cfg, ensure_ascii=False, indent=2), encoding="utf-8")
-    try:
-        p.chmod(0o600)
-    except OSError:
-        pass
-    return p
+    from .config import load_config, save_config
+
+    full = load_config()
+    full["smtp"] = {k: v for k, v in cfg.items() if k != "notify_to"}
+    full.setdefault("notify", {})["to"] = cfg.get("notify_to")
+    return save_config(full)
 
 
 def load_email_config():
-    p = email_config_path()
-    return json.loads(p.read_text(encoding="utf-8")) if p.exists() else None
+    from .config import load_config
+
+    cfg = load_config()
+    smtp = cfg.get("smtp") or {}
+    if not smtp:
+        return None
+    return {**smtp, "notify_to": (cfg.get("notify") or {}).get("to")}
 
 
 def build_message(to: str, subject: str, body: str, from_addr: str,
