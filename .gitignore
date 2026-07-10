@@ -10,6 +10,10 @@ yarn-error.log*
 
 .vscode/*
 
+# IDE / OS
+.idea/
+.DS_Store
+
 # Python
 .venv/
 __pycache__/

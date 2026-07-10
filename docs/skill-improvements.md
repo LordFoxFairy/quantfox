@@ -21,7 +21,8 @@
 - **B2 大盘 regime 前置**：screen-report 报告头含 `market-valuation`；fund-screener SOP 第1步先跑 market-valuation，偏贵→建议 steady/pullback。
 - **B5 前瞻收益分布**：新增 `quantfox forecast`（+`forecast.py`）→ 持有20/60/120/250日的正收益概率/中位/p10-p90/极值，且带**估值条件化** `from_similar_valuation`（从当前估值分位买入的历史下场，量化"别在山顶买"）。框架 v13 接入：收益区间用 forecast、看中位不看均值、优先条件化。测试 `test_forecast.py` 3 绿。
 - **B6 选基方法论内核**：新增 `docs/quant-fund-selection-methodology.md`（10 条心智模型，每条一个检查动作）；fund-screener SOP 精筛引用之 + 加 forecast/卡玛/归因。
-- 仍待：A2 的自动 T+1 对账（现为 SOP 指南）；**B3 舆情可复用模块（北向可用/板块流限流，需先验证 alpha，最谨慎，留最后）**。
+- 仍待：A2 的自动 T+1 对账（现为 SOP 指南，非代码）。
+- **B3 已定（2026-07-10）**：保持 WebSearch 舆情，重量化模块暂缓（复验：北向可用但粗、板块流限流；先验证 alpha）。→ backlog 已清，A/B 主体完成。
 
 ## A. 持仓记账（P1 · 影响 portfolio-manager / fund-watch / position-sizer）
 
@@ -54,10 +55,11 @@
 - **问题**：`screen` 在"市场给什么就排什么"，无市场级估值/宽度语境；已有 `market-valuation` 命令但**未与选基流程联动**，用户看不到"当前整体贵不贵、钱在往哪切"。
 - **建议**：选基流程开头先跑 `market-valuation` + 简版 regime 判断（哪些板块拥挤/哪些在承接），据此提示"追顶还是承接"，并影响 `--style` 建议（高位偏 steady/pullback）。
 
-### B3.（P2）舆情层仅为 agent-WebSearch，未落地为可复用能力
+### B3.（P2）舆情层仅为 agent-WebSearch，未落地为可复用能力 —— 【决定：保持 WebSearch，模块暂缓】
 - **场景**：用户想要"配合舆情分析"，期望是系统化的、按权重合成的舆情分。
 - **问题**：现状舆情=skill 第4步 WebSearch（agent 手动，不可复用、不可回测）；akshare 资金流/板块接口本环境常 `RemoteDisconnected` 限流，C 路(资金面)数据不稳。
-- **建议**：见设计 spec——舆情做成尽力而为、可降级模块（北向可用/板块流限流则退化中性并告知）；量化:舆情 综合权重可调(荐 steady 70:30)。**先验证舆情分是否真有 alpha，别做花架子。**
+- **决定（2026-07-10 复验后）**：**保持 CC WebSearch 为主**（真读新闻真判断，比拼凑限流的资金流指标更靠谱、更贴 regime）。复验：北向资金 `stock_hsgt_fund_flow_summary_em` ✅ 可用但仅市场级/偏粗；板块资金流 ❌ 仍限流。依据 backlog 自警"先验证有没有 alpha、别做花架子" + 保本优先 + YAGNI，**重量化舆情模块暂缓**。
+- **仅当**后续实盘用一阵确有缺口，再做"尽力而为、限流即降级、明确标未验证 alpha"的**轻量北向 helper**（不做重模块、不做量化:舆情加权闭环，直到先证明北向对基金选择真有 alpha）。
 
 ### B4.（P2）缺 top-k 深筛"初筛报告"（可视化可排序）
 - **场景**：粗筛出 top-50，用户要报告方便排序/对比/分析（"top-k 通常要有报告，k≈50 初步"）。
