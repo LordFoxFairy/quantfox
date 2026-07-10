@@ -52,14 +52,23 @@ def test_watch_confirm_backfills_when_nav_published(monkeypatch, tmp_path):
     assert abs(out["position"]["weighted_cost"] - 2.8190) < 1e-6
 
 
-def test_buy_with_nav_skips_calendar(monkeypatch, tmp_path):
+def test_buy_with_nav_still_resolves_confirm_date(monkeypatch, tmp_path):
     _setup(monkeypatch, tmp_path)
-
-    def boom(fetcher=None):
-        raise AssertionError("calendar should not be consulted when --nav is given")
-
-    monkeypatch.setattr(cal, "trade_dates", boom)
     res = runner.invoke(cli.app, ["watch", "buy", "002611", "--amount", "8000",
-                                  "--nav", "2.8357", "--entry-date", "2026-07-07"])
+                                  "--nav", "2.8357", "--entry-date", "2026-07-09",
+                                  "--order-time", "15:30"])
     assert res.exit_code == 0, res.output
-    assert json.loads(res.output)["lot"]["nav"] == 2.8357
+    out = json.loads(res.output)
+    assert out["lot"]["nav"] == 2.8357  # 用户报的净值原样采信，绝不取价覆盖
+    assert out["lot"]["confirm_date"] == "2026-07-10"  # 15:00 后顺延下一交易日
+
+
+def test_buy_with_nav_and_explicit_confirm_date_overrides(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    res = runner.invoke(cli.app, ["watch", "buy", "002611", "--amount", "8000",
+                                  "--nav", "2.8357", "--entry-date", "2026-07-09",
+                                  "--order-time", "15:30", "--confirm-date", "2026-07-09"])
+    assert res.exit_code == 0, res.output
+    out = json.loads(res.output)
+    assert out["lot"]["nav"] == 2.8357
+    assert out["lot"]["confirm_date"] == "2026-07-09"

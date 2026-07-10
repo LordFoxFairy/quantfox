@@ -24,13 +24,14 @@ description: >-
 
 ## 用户如何维护清单（opt-in）
 - 观测一只：`quantfox watch add <代码> [--target-price 目标价]`
-- 真买入了（**按金额记账，支持分批**）：`quantfox watch buy <代码> --amount <金额> --nav <支付宝确认净值> [--entry-date 默认今天]`。每笔记一次、**不覆盖**，自动折算份额 + 更新加权成本。已知加权成本时也可 `--entry-price <成本净值>`。
+- 真买入了（**按金额记账，支持分批**）：`quantfox watch buy <代码> --amount <金额> [--entry-date 默认今天] [--order-time HH:MM]`——自动按 15:00 cutoff + 交易日历推确认日并取净值；净值未出会记 pending，出值后跑 `quantfox watch confirm <代码>` 自动补记。用户能从 App 直接报确认净值时，加 `--nav <确认净值>` 仍最优先采信（现在也会自动推确认日，可用 `--confirm-date` 覆盖）。每笔记一次、**不覆盖**，自动折算份额 + 更新加权成本。已知加权成本时也可 `--entry-price <成本净值>`。
 - 看某只盈亏：`quantfox watch position <代码>`（分笔明细 + 加权成本 + 现值 + 浮盈亏）。
 - 卖出移除：`quantfox watch remove <代码>`。
 - 清单为空 → 不要臆造，告诉用户"先把你在看的/持有的加进 watch 清单"。
 
 **买卖在支付宝手动操作，本工具只做参谋、不碰钱**：
-- **成本净值优先让用户直接报**：基金 T+1，15:00 前下单算当日净值、15:00 后顺延次日；两笔时滞可能不同。**别猜确认时点**——让用户从支付宝看"持仓成本/确认净值"直接报，或只有金额时用 App 已知每日/累计收益对账后再落库。
+- **成本净值默认自动推**：基金 T+1，15:00 前下单算当日净值、15:00 后顺延次日；`watch buy --amount` 已按此自动算确认日+取净值，净值未出先记 pending，出值后 `watch confirm` 补记。用户能从支付宝看到确认净值时报 `--nav` 更准，仍最优先采信。
+- **对账用 `watch expect` / `watch reconcile`**：`quantfox watch expect` 按已确认份额算当日预期收益并落库；拿到 App 实际数后 `quantfox watch reconcile --app-profit <App 显示的当日收益>` 比对判定 ok/rounding/mismatch。
 - 绝不声称"已帮你买入/卖出"——我们没有、也不该有交易权限。
 
 ## 闭环步骤
@@ -44,7 +45,7 @@ description: >-
 6. **诚实结尾**：非投资建议；提示"追涨杀跌、频繁看盘是中长期最大的敌人"。
 
 ## 关于定时 + 邮件推送（都是用户的选择，我不擅自建）
-- **定时前必须先配好邮箱**：`quantfox email show` 确认已配（含 `notify_to` 默认收件人）、`quantfox email test` 验证能收到；没配就引导 `quantfox email config --to <你的邮箱> ...`。配置存全局 json（`~/.quantfox/email.json`，600、密码不打印）。
+- **定时前必须先配好邮箱**：`quantfox email show` 确认已配（含 `notify_to` 默认收件人）、`quantfox email test` 验证能收到；没配就引导 `quantfox email config --to <你的邮箱> ...`。配置存全局 json（`~/.quantfox/config.json`，旧 email.json 自动迁移；600、密码不打印）。
 - **收件人绝不自己猜**：一律用配置里的 `notify_to`（`email send` 不带 `--to` 就是发给它）。**别用系统上下文里的其它邮箱！**
 - 想自动：`/schedule` 挂**周频**调用本技能。
 - **定时巡检 = 每次都发一封摘要**（报平安也发，让用户安心）：`quantfox watch digest` 生成摘要 → `quantfox email send --subject "quantfox 周报" --body "<digest>"`（有事时标题写"⚠️ X 需关注"）。

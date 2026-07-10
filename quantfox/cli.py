@@ -484,11 +484,21 @@ def watch_buy(symbol: str,
     entry_date = entry_date or _dt.date.today().isoformat()
     led = _ledger()
     if amount is not None:
-        if nav is not None:  # 用户直接报 App 确认净值（最可信，优先）
+        if nav is not None:  # 用户直接报 App 确认净值（最可信，优先），确认日仍按 cutoff+日历推
+            if confirm_date is None:
+                from .calendar_cn import nav_date_for_order, trade_dates
+
+                t = _dt.time.fromisoformat(order_time) if order_time else _dt.datetime.now().time()
+                try:
+                    confirm_date = nav_date_for_order(
+                        _dt.datetime.combine(_dt.date.fromisoformat(entry_date), t), trade_dates())
+                except RuntimeError as e:
+                    raise typer.BadParameter(f"{e}（--nav 已给，但确认日推算失败：请补 --confirm-date）") from e
             shares = led.add_lot(asset.symbol, asset.type, amount, nav, entry_date,
-                                 confirm_date=confirm_date or entry_date)
+                                 confirm_date=confirm_date)
             typer.echo(json.dumps({"holding": asset.symbol,
-                                   "lot": {"amount": amount, "nav": nav, "shares": shares},
+                                   "lot": {"amount": amount, "nav": nav, "shares": shares,
+                                           "confirm_date": confirm_date},
                                    "position": led.position(asset.symbol)}, ensure_ascii=False))
             return
         if confirm_date is None:  # 自动推净值确认日（15:00 cutoff + 交易日历）
@@ -562,6 +572,9 @@ def watch_expect(symbol: str = typer.Argument(None)):
         symbols = [resolve(symbol).symbol]
     else:
         symbols = [h["symbol"] for h in led.list_holdings() if h["status"] == "holding"]
+    if not symbols:
+        typer.echo(json.dumps({"note": "无持仓分笔，先 quantfox watch buy 记账"}, ensure_ascii=False))
+        return
     out = []
     for sym in symbols:
         try:

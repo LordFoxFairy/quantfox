@@ -27,10 +27,14 @@ def trade_dates(fetcher=None) -> list:
     p = _cache_path()
     cached = None
     if p.exists():
-        cached = json.loads(p.read_text(encoding="utf-8"))
-        age = (_dt.date.today() - _dt.date.fromisoformat(cached["fetched_at"][:10])).days
-        if age <= CACHE_MAX_AGE_DAYS:
-            return cached["dates"]
+        try:
+            cached = json.loads(p.read_text(encoding="utf-8"))
+            age = (_dt.date.today() - _dt.date.fromisoformat(cached["fetched_at"][:10])).days
+            if age <= CACHE_MAX_AGE_DAYS:
+                return cached["dates"]
+        except (ValueError, KeyError) as e:
+            print(f"# 交易日历缓存损坏，忽略并重新拉取: {e}", file=sys.stderr)
+            cached = None
     try:
         dates = (fetcher or _fetch_dates)()
         p.write_text(json.dumps({"fetched_at": _dt.date.today().isoformat(), "dates": dates},

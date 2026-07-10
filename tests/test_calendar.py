@@ -68,3 +68,28 @@ def test_no_cache_and_fetch_fail_raises(monkeypatch, tmp_path):
 
     with pytest.raises(RuntimeError, match="confirm-date"):
         trade_dates(fetcher=boom)
+
+
+def test_corrupt_cache_with_working_fetcher_refetches(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
+    p = tmp_path / "trade_calendar.json"
+    p.write_text("{not json", encoding="utf-8")
+
+    def fake_fetch():
+        return DATES
+
+    assert trade_dates(fetcher=fake_fetch) == DATES
+    cached = json.loads(p.read_text(encoding="utf-8"))
+    assert cached["dates"] == DATES
+
+
+def test_corrupt_cache_with_failing_fetcher_raises(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
+    p = tmp_path / "trade_calendar.json"
+    p.write_text("{not json", encoding="utf-8")
+
+    def boom():
+        raise ConnectionError("network down")
+
+    with pytest.raises(RuntimeError, match="confirm-date"):
+        trade_dates(fetcher=boom)

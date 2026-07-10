@@ -3,11 +3,11 @@
 安全：配置存本地 data_dir/config.json（旧 email.json 自动迁移）（在 .gitignore 的 /data 或 ~/.quantfox 下），
 不进仓库、不打印密码；文件权限 600。用户填自己邮箱的 SMTP + 授权码（Gmail/163 等需"应用专用密码"）。
 """
-import json
 import smtplib
 import ssl
 from email.message import EmailMessage
 from pathlib import Path
+
 
 def email_config_path() -> Path:
     from .config import config_path
