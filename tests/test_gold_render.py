@@ -129,10 +129,10 @@ def test_assemble_and_render(tmp_path):
     assert "事件日历不可用" in html
     # 金矿摘要：榜首带一句话理由（Fix 5，potential 榜首用深筛分）
     assert "深筛分" in html
-    # 高收益榜理由走 _pct 百分数格式化（r_1y 是小数：合成数据最大 r_1y=29.0 → +2900.0%），
-    # 不许把小数原样拼成 "1年 29.0%"
-    assert "1年 +2900.0%（裸收益，风险自负）" in html
-    assert "1年 29.0%" not in html
+    # 高收益榜理由走 _pct 百分数格式化：universe 收益列是百分数单位（合成最大 r_1y=29.0 即 29%），
+    # build_boards 边界归一成小数 0.29 → 渲染 +29.0%；不许出现 100 倍错标（+2900.0%）
+    assert "1年 +29.0%（裸收益，风险自负）" in html
+    assert "+2900.0%" not in html
 
 
 def test_holdings_section_wired_when_holdings_fn_given(tmp_path):

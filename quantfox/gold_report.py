@@ -47,7 +47,9 @@ def _base_row(m, universes):
     t = m.get("fund_type") or _fund_type_of(code, universes)
     if t and t in universes:
         hit = universes[t].loc[universes[t]["code"] == code, "r_1y"]
-        r1y = float(hit.iloc[0]) if len(hit) else None
+        # universe 的收益列是百分数单位（21.73 == 21.73%，见 data/universe.py 只对 fee 除百）；
+        # 榜单行统一小数口径（渲染层 _pct 会 ×100），在此边界归一。
+        r1y = float(hit.iloc[0]) / 100.0 if len(hit) else None
     return {"code": code, "name": m.get("name"), "fund_type": t, "r_1y": r1y,
             "sharpe": m.get("sharpe"), "calmar": m.get("calmar"),
             "max_drawdown": m.get("max_drawdown"), "ann_vol": m.get("ann_vol"),
@@ -92,7 +94,8 @@ def build_boards(universes, pool_metrics, screen_rows, top=10) -> dict:
     for _, u in hi.iterrows():
         m = by_code.get(str(u["code"]), {"code": str(u["code"]), "name": u["name"]})
         base = _base_row(m, universes)
-        base.update({"r_1y": float(u["r_1y"]), "sort_key": float(u["r_1y"])})
+        # 同 _base_row：universe 收益列是百分数单位，边界归一成小数
+        base.update({"r_1y": float(u["r_1y"]) / 100.0, "sort_key": float(u["r_1y"]) / 100.0})
         high_return.append(base)
 
     # 以下三榜从同一批 rows 里筛选：先复制再写 sort_key，避免同一只基金
