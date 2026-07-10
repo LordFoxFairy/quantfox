@@ -32,12 +32,20 @@
   框架 v14 诚实铁律唯一出处 + 7 skill 同步 + grep 矩阵测试；交易日历 15:00 cutoff 自动确认日、pending lot、
   `watch confirm/expect/reconcile` + append-only reconciliations 留痕；output/ 清理入 ~/.quantfox，遗留稿归档 docs/reference。
 
+- [x] **P2 监控闭环**（2026-07-11，spec：`docs/superpowers/specs/2026-07-10-quantfox-p2-monitoring-design.md`；plan：`docs/superpowers/plans/2026-07-10-quantfox-p2-monitoring.md`）：
+  共享模拟器 `simulate_paths`+`forecast --short`；DataHealth-lite 数据新鲜度守护；`alerts`/`report_issues` 留痕表；
+  launchd 本机调度（`quantfox schedule install/status`，睡眠错过由 launchd 唤醒后补跑）；
+  `quantfox gold-report` 全景淘金周报（五榜+扇形图+回看+事件日历尽力而为，PDF 自动生成）；
+  `quantfox patrol` 持仓巡检（六类告警去重+自动补记 pending lot+盘中可选+`--llm` 存根）；分析框架 v15。
+  全量测试 173 passed / 1 skipped；真实周报冒烟（PDF 860KB）、真实巡检冒烟（8 条新增告警落库）、
+  `schedule install`+`status` 均已在本机验证通过。
+
 ### 后续（未开始）
+- [ ] **P3**：正式对外发布；A 股市场层 + ETF 覆盖；llm 深分析（当前 `--llm` 为存根）；事件日历多源（当前仅尽力而为单源）。
 - [ ] **yield-seeker SOP 落地**（2026-07-10 晚会话沉淀）：fund-screener 加"诉求校准/风偏探测"前置章节 + 引擎 C1(metrics-batch)/C2(假稳flags)/C3(名实核对)/C4(forecast小样本警示)/C5(确认日helper)——设计见 `docs/superpowers/specs/2026-07-10-yield-seeker-sop-design.md`。
 - [ ] review 口径细分（买入胜率 vs 回避胜率 vs 策略净值胜率）——回测已按此口径，live review 可跟进。
 - [x] price_ref_date 对齐场外基金 T+1 —— P1 已建 calendar_cn + watch buy 自动确认日（2026-07-10）。
-- [ ] **P2**：headless `--llm`（无人值守分析）。
-- [ ] **P3**：正式对外发布。
+- [x] **P2**：headless `--llm`（无人值守分析）—— `quantfox patrol --llm` 已实现（存根版，深分析留 P3）。
 - [ ] 参考池（P3/P4 设计时按需摘取，不整体引入）：Qlib（ML 选股工作流）/ Backtrader（回测模式）/ easy-fund 类（指标查漏：詹森/信息比率）/ FinNLP·FinGPT（数据清洗流程）。CTA 期货+杠杆与保本优先冲突，未立项。
 
 - [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。
