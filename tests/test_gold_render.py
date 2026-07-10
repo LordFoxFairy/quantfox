@@ -70,14 +70,13 @@ def _ledger(tmp_path):
     return Ledger(tmp_path / "ledger.db")
 
 
-def test_assemble_and_render(tmp_path, monkeypatch):
-    # 零网络：next_week_events 在 gold_report_render 命名空间内打桩，不触网
-    monkeypatch.setattr("quantfox.gold_report_render.next_week_events", lambda: None)
-
+def test_assemble_and_render(tmp_path):
     led = _ledger(tmp_path)
 
+    # 首期：注入返回合成事件的 events_fn（零网络，走公开 API 注入而非 monkeypatch）
+    fake_events = [{"date": "2026-07-13", "event": "测试CPI公布"}]
     payload1 = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
-                        TODAY, TRADE_DATES, top=5)
+                        TODAY, TRADE_DATES, top=5, events_fn=lambda: fake_events)
 
     # payload 含 boards/health/review/charts/events 键
     for key in ("boards", "health", "review", "charts", "events"):
@@ -85,16 +84,22 @@ def test_assemble_and_render(tmp_path, monkeypatch):
     assert set(payload1["boards"]) == {"potential", "high_return", "steady", "pullback", "defensive"}
     # 首期 review 为 None（无上期存档可回看）
     assert payload1["review"] is None
-    # 事件日历打桩返回 None → payload["events"] 为 None 且 health line 追加不可用提示
-    assert payload1["events"] is None
-    assert "事件日历不可用" in payload1["health"]["line"]
+    # 事件可用 → 原样进 payload，health line 不带"不可用"提示
+    assert payload1["events"] == fake_events
+    assert "事件日历不可用" not in payload1["health"]["line"]
+    # 事件可用时渲染出事件日历节
+    html1 = build_gold_html(payload1)
+    assert "下周事件" in html1 and "测试CPI公布" in html1
     # 首期 issues 已落库（存档供下期回看）
     issues1 = led.issues_for(TODAY)
     assert len(issues1) > 0
 
-    # 第二次以 today+7 调 assemble → review 应非空且含每榜平均
+    # 第二次以 today+7 调 assemble，events_fn 返回 None → review 应非空且含每榜平均
     payload2 = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
-                        TODAY2, TRADE_DATES, top=5)
+                        TODAY2, TRADE_DATES, top=5, events_fn=lambda: None)
+    # 事件不可用 → payload["events"] 为 None 且 health line 追加不可用提示
+    assert payload2["events"] is None
+    assert "事件日历不可用" in payload2["health"]["line"]
     assert payload2["review"] is not None
     assert payload2["review"]["issue_date"] == TODAY
     assert payload2["review"]["rows"], "回看应含逐只行"
@@ -119,3 +124,6 @@ def test_assemble_and_render(tmp_path, monkeypatch):
         assert label in html
     # ECharts 数据以 JSON 注入：图表数据片段可见（simulate_paths 输出键）
     assert '"p50"' in html and '"p10"' in html and '"p90"' in html
+    # 事件不可用 → 整节省略（不渲染"下周事件"），仅 health line 注明
+    assert "下周事件" not in html
+    assert "事件日历不可用" in html

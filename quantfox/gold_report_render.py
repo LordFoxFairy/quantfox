@@ -105,10 +105,12 @@ def _mini_entry(code, name, prices):
 
 # ---------- assemble ----------
 
-def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_dates_list, top=10) -> dict:
+def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_dates_list, top=10,
+             events_fn=next_week_events) -> dict:
     """五榜 + 净值取数 + 健康 + 扇形/迷你图 + 榜单存档 + 上期回看 + 事件日历。
 
-    全依赖注入（universes/prices_fn/metrics_fn/screen_fn/led），本函数不触网。
+    全依赖注入（universes/prices_fn/metrics_fn/screen_fn/led/events_fn），本函数自身不触网；
+    events_fn 默认接生产实现（next_week_events），测试注入 fake 即零网络。
     """
     stock_uni = universes.get("股票型")
     screen_rows = screen_fn(stock_uni) if stock_uni is not None and len(stock_uni) else []
@@ -151,7 +153,7 @@ def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_date
             nav = float(prices["value"].iloc[-1]) if prices is not None and len(prices) else None
             led.add_report_issue(today, board, rank, r["code"], r.get("name"), nav)
 
-    events = next_week_events()
+    events = events_fn()
     if events is None:
         health["line"] = health["line"] + "（事件日历不可用）"
 
@@ -260,12 +262,13 @@ def _regime_html(mv):
 
 
 def _events_html(events):
+    """事件不可用（None）→ 整节省略，只靠 health line 注明——绝不渲染编造/占位内容。"""
     if events is None:
-        return "下周事件日历：暂不可用（akshare 异常或结构变化，未编造数据）"
+        return ""
     if not events:
-        return "下周事件日历：无重大事件"
+        return '<div class="bar">下周事件日历：无重大事件</div>'
     items = "、".join(f'{e.get("date", "")} {_html.escape(str(e.get("event", "")))}' for e in events)
-    return "下周事件日历：" + items
+    return f'<div class="bar">{"下周事件日历：" + items}</div>'
 
 
 def _review_html(review):
@@ -320,7 +323,7 @@ def build_gold_html(payload: dict) -> str:
         f'<div class="bar">{_regime_html(meta.get("market_valuation"))}</div>'
         f'<div class="bar">{_html.escape(health.get("line", ""))}</div>'
         f'<div class="bar">{_html.escape(_summary_html(summary))}</div>'
-        f'<div class="bar">{_html.escape(_events_html(payload.get("events")))}</div>'
+        f'{_events_html(payload.get("events"))}'
         f'<div class="disclaimer">深筛/回看均基于公开历史数据统计，<b>非投资建议</b>；'
         f'幸存者偏差：榜单只含仍存续的基金，已退市/清盘的产品不会出现在这里；'
         f'过去收益≠未来收益，前瞻分布是历史统计推演，非预测承诺；决策与风险自负。</div>'
@@ -336,5 +339,5 @@ def build_gold_html(payload: dict) -> str:
         .replace("__REVIEW__", _review_html(payload.get("review")))
         .replace("__GOLD_JSON__", json.dumps({"charts": charts, "boards": {
             b: [{"code": r["code"]} for r in boards.get(b, [])] for b in _BOARD_ORDER}},
-            ensure_ascii=False))
+            ensure_ascii=False).replace("</", "<\\/"))  # 防基金名等含 </script> 提前闭合脚本标签
     )
