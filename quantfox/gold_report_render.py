@@ -261,19 +261,19 @@ def _top1_reason(board, row):
     row = row or {}
     if board == "potential":
         score = row.get("score")
-        return None if score is None else f"深筛分 {score}"
+        return None if score is None else f"深筛分 {round(score, 2)}"
     if board == "high_return":
         r_1y = row.get("r_1y")
         return None if r_1y is None else f"1年 {_pct(r_1y)}（裸收益，风险自负）"
     if board == "steady":
         calmar = row.get("calmar")
-        return None if calmar is None else f"卡玛 {calmar}"
+        return None if calmar is None else f"卡玛 {round(calmar, 2)}"
     if board == "pullback":
         dist = row.get("dist_from_52w_high")
         return None if dist is None else f"距高点 -{dist:.0%}×质量"
     if board == "defensive":
         ann_vol = row.get("ann_vol")
-        return None if ann_vol is None else f"年化波动 {ann_vol}"
+        return None if ann_vol is None else f"年化波动 {round(ann_vol, 2)}"
     return None
 
 

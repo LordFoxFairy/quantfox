@@ -133,6 +133,9 @@ def test_assemble_and_render(tmp_path):
     # build_boards 边界归一成小数 0.29 → 渲染 +29.0%；不许出现 100 倍错标（+2900.0%）
     assert "1年 +29.0%（裸收益，风险自负）" in html
     assert "+2900.0%" not in html
+    # 数值理由四舍五入到 2 位小数（合成 calmar 0.8+4*0.1 浮点为 1.2000000000000002，须渲染成 1.2）
+    assert "卡玛 1.2）" in html
+    assert "1.2000000" not in html
 
 
 def test_holdings_section_wired_when_holdings_fn_given(tmp_path):
@@ -164,6 +167,28 @@ def test_holdings_section_wired_when_holdings_fn_given(tmp_path):
     assert "holdings" not in payload_no_holdings
     html_no_holdings = build_gold_html(payload_no_holdings)
     assert "我的持仓" not in html_no_holdings
+
+
+def test_board_names_backfilled_from_universe_when_metrics_lack_name(tmp_path):
+    """真实 metrics_batch 的 name 恒为 None（resolve 不带基金名）——board 行必须从 universe 回填，
+    否则周报摘要四个榜的"榜首"全显示 '—'（真实报告里实际发生过）。"""
+    def metrics_fn_no_name(codes):
+        out = _metrics_fn(codes)
+        for r in out:
+            r["name"] = None  # 复现真实 gap：metrics_batch -> resolve(code).name is None
+        return out
+
+    led = _ledger(tmp_path)
+    payload = assemble(UNIVERSES, _synthetic_prices, metrics_fn_no_name, _screen_fn, led,
+                       TODAY, TRADE_DATES, top=5, events_fn=lambda: None)
+    for board in ("high_return", "steady", "pullback", "defensive"):
+        rows = payload["boards"][board]
+        assert rows, f"{board} 应有上榜行（合成数据全命中）"
+        assert str(rows[0].get("name") or "").startswith("示例基金"), board
+        assert str(payload["summary"][board]["top1"] or "").startswith("示例基金"), board
+
+    html = build_gold_html(payload)
+    assert "榜首：—" not in html  # 五榜榜首名字全部可见
 
 
 def test_same_day_rerun_does_not_duplicate_report_issues(tmp_path):

@@ -44,13 +44,17 @@ def _name_theme_mismatch(name, theme):
 def _base_row(m, universes):
     code = m["code"]
     r1y = None
+    name = m.get("name")
     t = m.get("fund_type") or _fund_type_of(code, universes)
     if t and t in universes:
-        hit = universes[t].loc[universes[t]["code"] == code, "r_1y"]
-        # universe 的收益列是百分数单位（21.73 == 21.73%，见 data/universe.py 只对 fee 除百）；
-        # 榜单行统一小数口径（渲染层 _pct 会 ×100），在此边界归一。
-        r1y = float(hit.iloc[0]) / 100.0 if len(hit) else None
-    return {"code": code, "name": m.get("name"), "fund_type": t, "r_1y": r1y,
+        hit = universes[t].loc[universes[t]["code"] == code, ["r_1y", "name"]]
+        if len(hit):
+            # universe 的收益列是百分数单位（21.73 == 21.73%，见 data/universe.py 只对 fee 除百）；
+            # 榜单行统一小数口径（渲染层 _pct 会 ×100），在此边界归一。
+            r1y = float(hit["r_1y"].iloc[0]) / 100.0
+            if not name:  # metrics_batch 的 name 恒为 None（resolve 不带基金名）→ 从 universe 回填
+                name = str(hit["name"].iloc[0])
+    return {"code": code, "name": name, "fund_type": t, "r_1y": r1y,
             "sharpe": m.get("sharpe"), "calmar": m.get("calmar"),
             "max_drawdown": m.get("max_drawdown"), "ann_vol": m.get("ann_vol"),
             "price_pct": m.get("price_pct"),
