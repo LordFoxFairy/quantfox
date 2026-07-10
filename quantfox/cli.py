@@ -301,6 +301,57 @@ def log_signal(
     typer.echo(json.dumps({"prediction_id": pid}))
 
 
+mandate_app = typer.Typer(help="个人投资档案（个性化决策地基）：本金/目标/风险上限")
+app.add_typer(mandate_app, name="mandate")
+
+
+@mandate_app.command("set")
+def mandate_set(total_wealth: float = typer.Option(None, help="全部可计量财富（元）"),
+                deployable: float = typer.Option(None, help="本次可投入资金（元）"),
+                cash_reserve: float = typer.Option(None, help="现金底线（元）"),
+                target_date: str = typer.Option(None, help="目标日期 YYYY-MM-DD"),
+                target_return: float = typer.Option(None, help="目标净收益，小数（8% 填 0.08）"),
+                max_loss: float = typer.Option(None, help="最大可亏金额（元）"),
+                max_single_weight: float = typer.Option(None, help="单标的上限，占可投比例 (0,1]"),
+                max_theme_weight: float = typer.Option(None, help="单主题上限，占可投比例 (0,1]"),
+                exclude: str = typer.Option(None, help="排除标的，逗号分隔代码"),
+                notes: str = typer.Option("", help="备注")):
+    """写入/更新档案（覆盖式，旧档案自动备份 .bak）。字段全可选，缺什么少个性化什么。"""
+    from .mandate import SCHEMA_VERSION, derived, save_mandate
+
+    m = {"schema_version": SCHEMA_VERSION, "mandate_as_of": _dt.date.today().isoformat(),
+         "currency": "CNY", "total_wealth": total_wealth, "deployable_capital": deployable,
+         "minimum_cash_reserve": cash_reserve, "target_date": target_date,
+         "target_net_return": target_return, "maximum_loss_amount": max_loss,
+         "maximum_single_instrument_weight": max_single_weight,
+         "maximum_theme_weight": max_theme_weight,
+         "excluded_instruments": [x.strip() for x in exclude.split(",") if x.strip()] if exclude else [],
+         "notes": notes}
+    m = {k: v for k, v in m.items() if v not in (None, [], "")}
+    m["schema_version"] = SCHEMA_VERSION
+    try:
+        p = save_mandate(m)
+    except ValueError as e:
+        raise typer.BadParameter(str(e)) from e
+    typer.echo(json.dumps({"saved": str(p), "mandate": m, "derived": derived(m)},
+                          ensure_ascii=False, indent=2))
+
+
+@mandate_app.command("show")
+def mandate_show():
+    """显示档案 + 派生量（单标的金额上限等）。无档案时提示如何建立。"""
+    from .mandate import derived, load_mandate, mandate_path
+
+    m = load_mandate()
+    if m is None:
+        typer.echo(json.dumps({"configured": False, "path": str(mandate_path()),
+                               "note": "尚无档案：quantfox mandate set --deployable 60000 --max-single-weight 0.2 ..."},
+                              ensure_ascii=False))
+        return
+    typer.echo(json.dumps({"configured": True, "mandate": m, "derived": derived(m)},
+                          ensure_ascii=False, indent=2))
+
+
 email_app = typer.Typer(help="邮件推送（配置你自己的邮箱后，可把报告/提醒发给任意邮箱）")
 app.add_typer(email_app, name="email")
 
