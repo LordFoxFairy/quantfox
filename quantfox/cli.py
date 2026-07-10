@@ -166,39 +166,45 @@ def market_valuation():
     typer.echo(json.dumps(mv(), ensure_ascii=False, indent=2))
 
 
-@app.command()
-def intraday(query: str):
-    """盘中异动预警（非盯盘）：黄金用实时价；基金用前十大重仓实时估算今日大致涨跌。"""
+def _intraday_estimate(asset):
+    """取一只标的的盘中估算（黄金用实时价；基金用官方盘中估算，降级到自算前十大重仓）。
+    被 `intraday` 命令与 `patrol --intraday` 共用。"""
     from .intraday import estimate_fund_intraday, gold_intraday
 
-    asset = resolve(query)
     if asset.type == "gold":
         try:
             import akshare as ak
 
-            out = gold_intraday(ak.spot_quotations_sge(symbol=asset.symbol))
+            return gold_intraday(ak.spot_quotations_sge(symbol=asset.symbol))
         except Exception as e:  # noqa
-            out = {"available": False, "error": str(e), "note": "盘中黄金行情暂不可用"}
-    else:
-        from .intraday import official_fund_estimate
+            return {"available": False, "error": str(e), "note": "盘中黄金行情暂不可用"}
 
+    from .intraday import official_fund_estimate
+
+    out = {"available": False}
+    try:  # 主源：数据商官方盘中估算（全持仓，最准）
+        import akshare as ak
+
+        out = official_fund_estimate(ak.fund_value_estimation_em(symbol="全部"), asset.symbol)
+    except Exception:  # noqa
         out = {"available": False}
-        try:  # 主源：数据商官方盘中估算（全持仓，最准）
-            import akshare as ak
+    if not out.get("available"):  # 降级：自算前十大重仓
+        top = (_profile_for(asset).get("holdings") or {}).get("top", [])
+        try:
+            from .intraday import _default_stock_quotes
 
-            out = official_fund_estimate(ak.fund_value_estimation_em(symbol="全部"), asset.symbol)
+            quotes = _default_stock_quotes([h["code"] for h in top if h.get("code")])
         except Exception:  # noqa
-            out = {"available": False}
-        if not out.get("available"):  # 降级：自算前十大重仓
-            top = (_profile_for(asset).get("holdings") or {}).get("top", [])
-            try:
-                from .intraday import _default_stock_quotes
+            quotes = {}
+        out = estimate_fund_intraday(top, quotes)
+    return out
 
-                quotes = _default_stock_quotes([h["code"] for h in top if h.get("code")])
-            except Exception:  # noqa
-                quotes = {}
-            out = estimate_fund_intraday(top, quotes)
-    typer.echo(json.dumps(out, ensure_ascii=False, indent=2))
+
+@app.command()
+def intraday(query: str):
+    """盘中异动预警（非盯盘）：黄金用实时价；基金用前十大重仓实时估算今日大致涨跌。"""
+    asset = resolve(query)
+    typer.echo(json.dumps(_intraday_estimate(asset), ensure_ascii=False, indent=2))
 
 
 @app.command()
@@ -831,6 +837,68 @@ def schedule_status():
     from .schedule_mac import status
 
     typer.echo(json.dumps(status(), ensure_ascii=False, indent=2))
+
+
+def _patrol_intraday_pct(symbol, asset_type):
+    """把 _intraday_estimate 的取数结果统一成一个"涨跌幅（小数）"给 patrol.run_intraday_patrol 用。"""
+    out = _intraday_estimate(resolve(symbol))
+    if not out.get("available"):
+        return None
+    if asset_type == "gold":
+        pct = out.get("intraday_change_pct")
+    else:
+        pct = out.get("est_change_pct")
+        if pct is None:
+            pct = out.get("est_full_if_representative_pct")
+        if pct is None:
+            pct = out.get("est_from_top_holdings_pct")
+    return None if pct is None else pct / 100.0
+
+
+@app.command()
+def patrol(email: bool = typer.Option(False, "--email", help="有新增信号才发邮件"),
+           intraday: bool = typer.Option(False, "--intraday", help="盘中异动预警，非日常全量巡检"),
+           llm: bool = typer.Option(False, "--llm", help="预留：LLM 深分析（P3 未实现）")):
+    """持仓巡检：对 watch 清单每只算客观信号，去重后追加进 alerts；有新增才发邮件。
+    周五自动附周度波动锥提示；--intraday 走盘中异动预警（更粗阈值、不落对账）；
+    --llm 是 P3 预留参数位，当前未实现。"""
+    if llm:
+        typer.echo(json.dumps({"error": "llm 深分析未实现，预留参数位（P3）"}, ensure_ascii=False))
+        return
+
+    from .patrol import run_intraday_patrol, run_patrol
+
+    led = _ledger()
+    today_d = _dt.date.today()
+    today = today_d.isoformat()
+
+    if intraday:
+        holdings = [h for h in led.list_holdings() if h["status"] == "holding"]
+        result = run_intraday_patrol(led, holdings, _patrol_intraday_pct, today)
+        if email and result["new_alerts"]:
+            from .notify import notify_send
+
+            mm_dd = today_d.strftime("%m-%d")
+            body = "\n".join(f"· {a['symbol']}：{a['message']}" for a in result["new_alerts"])
+            notify_send(f"[quantfox盘中] {mm_dd} {len(result['new_alerts'])}条异动", body)
+        typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
+        return
+
+    from .calendar_cn import trade_dates
+
+    try:
+        dates = trade_dates()
+    except Exception as e:  # noqa - 日历不可用不阻断巡检，健康检查会保守判定
+        typer.echo(f"# 交易日历不可用，健康检查将保守判定: {e}", err=True)
+        dates = [today]
+
+    result = run_patrol(led, resolve, _prices_for, dates, today, weekly_cone=today_d.weekday() == 4)
+    if email and result["email_body"] is not None:
+        from .notify import notify_send
+
+        mm_dd = today_d.strftime("%m-%d")
+        notify_send(f"[quantfox巡检] {mm_dd} {len(result['new_alerts'])}条新信号", result["email_body"])
+    typer.echo(json.dumps(result, ensure_ascii=False, indent=2))
 
 
 if __name__ == "__main__":
