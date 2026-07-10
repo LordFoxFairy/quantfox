@@ -38,3 +38,19 @@ def test_marketplace_lists_all_skills():
     listed = [s for p in data["plugins"] for s in p.get("skills", [])]
     for name in EXPECTED:
         assert f"./skills/{name}" in listed
+
+
+def test_honesty_matrix_all_skills():
+    # 7 skill × 铁律关键词全覆盖（grep 矩阵验收，spec §3）
+    keywords = ["中位", "0.85", "幸存者偏差", "from_similar_valuation", "QUANTFOX_HOME", "mandate"]
+    for name in EXPECTED:
+        text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+        for kw in keywords:
+            assert kw in text, f"{name}/SKILL.md 缺铁律关键词: {kw}"
+
+
+def test_forecast_step_in_analysis_skills():
+    # 涉及"要不要买/持有"判断的 skill 必须有前瞻步骤
+    for name in ("fund-analyze", "fund-screener", "fund-watch", "fund-compare", "portfolio-manager"):
+        text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
+        assert "quantfox forecast" in text, f"{name}/SKILL.md 缺 quantfox forecast 步骤"
