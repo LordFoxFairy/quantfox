@@ -95,9 +95,11 @@ def run_patrol(led, resolve_fn, prices_fn, trade_dates_list, today, weekly_cone=
     返回 {new_alerts, health, expect, filled, cone_notes, email_body}；无新增信号 email_body 为 None。
     """
     new_alerts, health_items, expect, filled, cone_notes = [], [], [], [], []
+    covered = set()
 
     for h in led.list_holdings():
         symbol, status = h["symbol"], h["status"]
+        covered.add(symbol)
         try:
             asset = resolve_fn(symbol)
             prices = prices_fn(asset)
@@ -152,6 +154,26 @@ def run_patrol(led, resolve_fn, prices_fn, trade_dates_list, today, weekly_cone=
                         "symbol": symbol, "p50_5d": cone["p50"][-1],
                         "note": f"{symbol} 未来5日中位路径 {cone['p50'][-1] * 100:.1f}%，短期或承压",
                     })
+
+    # 首笔即 pending 的新标的：无已确认分笔 → 无 holdings 行，上面循环看不到它。
+    # 最常见场景恰是"首次买入且 15:00 后下单"，必须单独扫 pending lots 兜住：
+    # 净值已出自动补记（_recompute_holding 顺带建出 holdings 行）；超期未出照样 pending_confirm。
+    for symbol in {lot["symbol"] for lot in led.pending_lots()} - covered:
+        try:
+            asset = resolve_fn(symbol)
+            prices = prices_fn(asset)
+        except Exception as e:  # noqa - 单只失败不能挡住整批
+            health_items.append(health_item(symbol, "failed", note=str(e)))
+            _emit(led, new_alerts, symbol, "data_failure", "triggered", str(e))
+            continue
+        _emit(led, new_alerts, symbol, "data_failure", "clear", "取价恢复正常")
+        health_items.append(check_freshness(symbol, prices, trade_dates_list, today))
+
+        pending_triggered = _fill_pending_lots(led, symbol, prices, trade_dates_list, today, filled)
+        _emit(led, new_alerts, symbol, "pending_confirm",
+              "triggered" if pending_triggered else "clear",
+              "存在净值超 2 个交易日未出的分笔" if pending_triggered else "")
+        # 无已确认份额 → expect/对账/波动锥都算不了，不硬算
 
     health = summarize_health(health_items)
     email_body = _build_email(health, new_alerts, expect, cone_notes) if new_alerts else None

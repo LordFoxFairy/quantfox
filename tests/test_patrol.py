@@ -97,6 +97,45 @@ def test_pending_confirm_triggers_after_grace_days(tmp_path):
     assert r["filled"] == []
 
 
+# ---------- 4b) 首笔即 pending 的新标的（无 holdings 行）也必须被巡检覆盖 ----------
+
+def test_pending_only_symbol_gets_backfilled(tmp_path):
+    # 首次买入且 15:00 后下单：唯一一笔是 pending，无已确认笔 → 无 holdings 行。
+    # 巡检必须仍能发现它：净值已出 → 自动补记，并由 _recompute_holding 建出 holdings 行。
+    led = Ledger(tmp_path / "t.db")
+    led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")
+    assert led.list_holdings() == []  # 前提：确实不可见于 holdings
+
+    prices = pd.DataFrame({"date": ["2026-07-08", "2026-07-09"], "value": [2.8313, 2.8219]})
+    dates = ["2026-07-07", "2026-07-08", "2026-07-09"]
+    r = run_patrol(led, resolve, lambda a: prices, dates, "2026-07-09")
+
+    assert len(r["filled"]) == 1
+    assert r["filled"][0]["symbol"] == "002611"
+    assert led.pending_lots("002611") == []
+    pos = led.position("002611")
+    assert pos["weighted_cost"] == 2.8219  # 落库确认成功
+    rows = {h["symbol"]: h for h in led.list_holdings()}
+    assert rows["002611"]["status"] == "holding"  # holdings 行已由补记建出
+
+
+def test_pending_only_symbol_pending_confirm_triggers_and_dedups(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")
+    prices = pd.DataFrame({"date": ["2026-07-07", "2026-07-08"], "value": [2.8357, 2.8313]})
+    dates = ["2026-07-07", "2026-07-08", "2026-07-09", "2026-07-10", "2026-07-13"]
+
+    r1 = run_patrol(led, resolve, lambda a: prices, dates, "2026-07-13")
+    pc1 = [a for a in r1["new_alerts"] if a["kind"] == "pending_confirm"]
+    assert len(pc1) == 1 and pc1[0]["state"] == "triggered"
+    assert pc1[0]["symbol"] == "002611"
+    assert r1["filled"] == []
+
+    r2 = run_patrol(led, resolve, lambda a: prices, dates, "2026-07-13")
+    pc2 = [a for a in r2["new_alerts"] if a["kind"] == "pending_confirm"]
+    assert pc2 == []  # 同一状态第二轮沉默
+
+
 # ---------- 5) latest_reconciliation verdict==mismatch → reconcile_mismatch triggered ----------
 
 def test_reconcile_mismatch_triggers(tmp_path):
