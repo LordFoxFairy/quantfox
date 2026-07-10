@@ -667,7 +667,7 @@ def test_fill_lot_confirms_pending(tmp_path):
     led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")
     lot_id = led.pending_lots("002611")[0]["id"]
     shares = led.fill_lot(lot_id, 2.8219)
-    assert abs(shares - round(15000 / 2.8219, 4)) < 0.001
+    assert abs(shares - round(12000 / 2.8219, 4)) < 0.001
     assert led.pending_lots("002611") == []
     pos = led.position("002611")
     assert pos["total_amount"] == 12000 and pos["weighted_cost"] == 2.8219
@@ -881,7 +881,7 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Consumes: lots 表（Task 4 语义：`shares IS NULL` = pending）。
 - Produces: `storage.classify_delta(delta: float) -> str`（`ok`≤0.05 < `rounding`≤0.5 < `mismatch`）；`Ledger.daily_expectation(symbol, prices: pd.DataFrame) -> dict | None`（键 `symbol/trade_date/prev_date/expected_daily_pnl/expected_total_pnl/shares_counted`）；`Ledger.add_reconciliation(**kw) -> int`；`Ledger.reconciliations_for(symbol, trade_date=None) -> list[dict]`；`Ledger.latest_reconciliation(symbol) -> dict | None`。CLI：`quantfox watch expect [symbol]`、`quantfox watch reconcile <symbol> --app-profit X [--date D]`。
 
-**口径（对齐 App，来自 002611 实战）**：t 日预期当日收益只算 `confirm_date < t`（严格早于，确认当日不计当日盈亏）的已确认份额 × (nav_t − nav_{t−1})；累计浮盈亏 = 已确认份额 × nav_t − 已确认投入金额（pending 不计）。
+**口径（对齐 App，002611 示例）**：t 日预期当日收益只算 `confirm_date < t`（严格早于，确认当日不计当日盈亏）的已确认份额 × (nav_t − nav_{t−1})；累计浮盈亏 = 已确认份额 × nav_t − 已确认投入金额（pending 不计）。
 
 - [ ] **Step 1: 写失败测试**
 
@@ -909,7 +909,7 @@ def test_daily_expectation_matches_app(tmp_path):
     led = _ledger_002611(tmp_path)
     exp = led.daily_expectation("002611", PRICES)
     assert exp["trade_date"] == "2026-07-10" and exp["prev_date"] == "2026-07-09"
-    # 7/10 两笔都已确认（7/7、7/9 均 < 7/10）
+    # 7/10 两笔都已确认（7/7、7/9 均 < 7/10）：7073.6269 份 × −0.0029 ≈ −20.51
     assert abs(exp["expected_daily_pnl"] - (-20.51)) < 0.05
     # 累计 = 份额×nav_t − 投入
     assert abs(exp["expected_total_pnl"] - (-59.45)) < 0.5
@@ -917,11 +917,11 @@ def test_daily_expectation_matches_app(tmp_path):
 
 def test_confirm_day_shares_not_counted(tmp_path):
     led = _ledger_002611(tmp_path)
-    # 只看到 7/9 为止的净值：第二笔当日刚确认，不计当日盈亏 → 只算第一笔
+    # 只看到 7/9 为止的净值：12000 那笔当日刚确认，不计当日盈亏 → 只算 8000 那笔
     exp = led.daily_expectation("002611", PRICES.iloc[:3])
-    shares_1w = round(8000 / 2.8357, 4)
-    assert abs(exp["expected_daily_pnl"] - round(shares_1w * (2.8219 - 2.8313), 2)) < 0.02
-    assert exp["shares_counted"] == shares_1w
+    shares_lot1 = round(8000 / 2.8357, 4)
+    assert abs(exp["expected_daily_pnl"] - round(shares_lot1 * (2.8219 - 2.8313), 2)) < 0.02  # ≈ −26.52
+    assert exp["shares_counted"] == shares_lot1
 
 
 def test_expectation_none_without_lots_or_prices(tmp_path):

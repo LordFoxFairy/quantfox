@@ -3,13 +3,13 @@ from quantfox.storage import Ledger
 
 def test_multi_lot_weighted_cost(tmp_path):
     led = Ledger(tmp_path / "t.db")
-    # 7.7 买 8000 @2.8357，7.8 又买 12000 @2.8219（虚构示例金额，分批建仓）
+    # 7.7 买 8000、7.8 又买 12000（虚构示例金额，分批建仓）
     led.add_lot("002611", "otc_fund", 8000, 2.8357, "2026-07-07")
     led.add_lot("002611", "otc_fund", 12000, 2.8219, "2026-07-08")
     pos = led.position("002611")
     assert pos["total_amount"] == 20000
-    # 份额 = 10000/2.8357 + 15000/2.8219
-    assert abs(pos["total_shares"] - (round(10000 / 2.8357, 4) + round(15000 / 2.8219, 4))) < 0.01
+    # 份额 = 8000/2.8357 + 12000/2.8219
+    assert abs(pos["total_shares"] - (round(8000 / 2.8357, 4) + round(12000 / 2.8219, 4))) < 0.01
     # 加权成本 = 总金额/总份额，落在两笔净值之间
     assert 2.82 < pos["weighted_cost"] < 2.836
     assert len(pos["lots"]) == 2  # 两笔明细都在，没被覆盖
@@ -51,7 +51,7 @@ def test_fill_lot_confirms_pending(tmp_path):
     led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")
     lot_id = led.pending_lots("002611")[0]["id"]
     shares = led.fill_lot(lot_id, 2.8219)
-    assert abs(shares - round(15000 / 2.8219, 4)) < 0.001
+    assert abs(shares - round(12000 / 2.8219, 4)) < 0.001
     assert led.pending_lots("002611") == []
     pos = led.position("002611")
     assert pos["total_amount"] == 12000 and pos["weighted_cost"] == 2.8219

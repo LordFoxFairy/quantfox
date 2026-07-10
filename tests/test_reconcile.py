@@ -19,7 +19,7 @@ def test_daily_expectation_matches_app(tmp_path):
     led = _ledger_002611(tmp_path)
     exp = led.daily_expectation("002611", PRICES)
     assert exp["trade_date"] == "2026-07-10" and exp["prev_date"] == "2026-07-09"
-    # 7/10 两笔都已确认（7/7、7/9 均 < 7/10）
+    # 7/10 两笔都已确认（7/7、7/9 均 < 7/10）：7073.6269 份 × −0.0029 ≈ −20.51
     assert abs(exp["expected_daily_pnl"] - (-20.51)) < 0.05
     # 累计 = 份额×nav_t − 投入
     assert abs(exp["expected_total_pnl"] - (-59.45)) < 0.5
@@ -27,11 +27,11 @@ def test_daily_expectation_matches_app(tmp_path):
 
 def test_confirm_day_shares_not_counted(tmp_path):
     led = _ledger_002611(tmp_path)
-    # 只看到 7/9 为止的净值：第二笔当日刚确认，不计当日盈亏 → 只算第一笔
+    # 只看到 7/9 为止的净值：12000 那笔当日刚确认，不计当日盈亏 → 只算 8000 那笔
     exp = led.daily_expectation("002611", PRICES.iloc[:3])
-    shares_1w = round(8000 / 2.8357, 4)
-    assert abs(exp["expected_daily_pnl"] - round(shares_1w * (2.8219 - 2.8313), 2)) < 0.02
-    assert exp["shares_counted"] == shares_1w
+    shares_lot1 = round(8000 / 2.8357, 4)
+    assert abs(exp["expected_daily_pnl"] - round(shares_lot1 * (2.8219 - 2.8313), 2)) < 0.02  # ≈ −26.52
+    assert exp["shares_counted"] == shares_lot1
 
 
 def test_expectation_none_without_lots_or_prices(tmp_path):
