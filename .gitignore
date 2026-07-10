@@ -22,3 +22,7 @@ __pycache__/
 /data/
 dist/
 *.egg-info/
+
+# quantfox 运行产物与代理沙箱（产物一律在 ~/.quantfox，见 analysis_framework.md）
+/output/
+.gitwarp/
