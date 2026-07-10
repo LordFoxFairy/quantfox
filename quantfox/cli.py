@@ -742,5 +742,37 @@ def watch_digest():
     typer.echo(format_digest(watching, holding))
 
 
+schedule_app = typer.Typer(help="本地定时（macOS launchd）：周报/巡检自动跑")
+app.add_typer(schedule_app, name="schedule")
+
+
+@schedule_app.command("install")
+def schedule_install(intraday: bool = typer.Option(False, "--intraday", help="加装盘中 14:30 巡检")):
+    """安装 launchd 定时：周五21:30 周报 + 工作日21:35 巡检。Mac 睡眠会错过，唤醒后补跑。"""
+    from .schedule_mac import install
+
+    try:
+        paths = install(intraday=intraday)
+    except RuntimeError as e:
+        raise typer.BadParameter(str(e)) from e
+    typer.echo(json.dumps({"installed": [str(p) for p in paths]}, ensure_ascii=False, indent=2))
+
+
+@schedule_app.command("uninstall")
+def schedule_uninstall():
+    """卸载全部 quantfox 定时任务。"""
+    from .schedule_mac import uninstall
+
+    typer.echo(json.dumps({"removed": [str(p) for p in uninstall()]}, ensure_ascii=False))
+
+
+@schedule_app.command("status")
+def schedule_status():
+    """查看定时任务安装/加载状态与最近日志行。"""
+    from .schedule_mac import status
+
+    typer.echo(json.dumps(status(), ensure_ascii=False, indent=2))
+
+
 if __name__ == "__main__":
     app()
