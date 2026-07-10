@@ -4,7 +4,7 @@ from pathlib import Path
 
 import typer
 
-from .config import ledger_path, reports_dir
+from .config import data_dir, ledger_path, reports_dir
 from .data.fund_profile import load_profile
 from .data.prices import load_prices
 from .data.resolve import resolve
@@ -268,6 +268,65 @@ def screen_report(type: str = typer.Option("股票型", help="基金类型"),
         pdf_path = path.with_suffix(".pdf")
         html_to_pdf(path, pdf_path)
         result["pdf"] = str(pdf_path)  # 邮件附这个
+    typer.echo(json.dumps(result, ensure_ascii=False))
+
+
+@app.command("gold-report")
+def gold_report_cmd(
+    top: int = typer.Option(10, help="每榜 Top N"),
+    email: bool = typer.Option(False, "--email", help="生成后用已配置邮箱发送 PDF"),
+    out: str = typer.Option(None, help="输出目录（默认 data_dir/reports/gold）"),
+):
+    """全景淘金周报：五榜（潜力/高收益/稳健/回调捡漏/防守）+ 前瞻分布扇形图 + 上期回看 + 事件日历。
+    自包含 HTML + PDF；--email 直接发送 PDF 附件。"""
+    from .calendar_cn import trade_dates
+    from .data.universe import load_universe
+    from .data.valuation import market_valuation as run_market_valuation
+    from .gold_report_render import assemble, build_gold_html
+    from .metrics_batch import metrics_batch as run_metrics_batch
+    from .report import html_to_pdf
+    from .screen import screen as run_screen
+
+    types = ["股票型", "混合型", "债券型", "指数型", "QDII"]
+    universes = {t: load_universe(t) for t in types}
+
+    def screen_fn(df):
+        return run_screen(df, top=max(top, 30))
+
+    def metrics_fn(codes):
+        return run_metrics_batch(codes)
+
+    def prices_fn(code):
+        return load_prices(resolve(code))
+
+    today = _dt.date.today().isoformat()
+    try:
+        dates = trade_dates()
+    except Exception as e:  # noqa - 日历不可用不阻断周报，健康检查会保守判定
+        typer.echo(f"# 交易日历不可用，健康检查将保守判定: {e}", err=True)
+        dates = [today]
+
+    payload = assemble(universes, prices_fn, metrics_fn, screen_fn, _ledger(), today, dates, top=top)
+    try:
+        payload["meta"]["market_valuation"] = run_market_valuation()
+    except Exception:  # noqa - 大盘估值仅头部展示，取数失败不阻断周报
+        payload["meta"]["market_valuation"] = {"available": False, "note": "取数失败"}
+
+    html = build_gold_html(payload)
+    out_dir = Path(out) if out else (data_dir() / "reports" / "gold")
+    out_dir.mkdir(parents=True, exist_ok=True)
+    html_path = out_dir / f"gold_{today}.html"
+    pdf_path = out_dir / f"gold_{today}.pdf"
+    html_path.write_text(html, encoding="utf-8")
+    html_to_pdf(html_path, pdf_path)
+
+    result = {"html": str(html_path), "pdf": str(pdf_path), "top": top, "health": payload["health"]["line"]}
+    if email:
+        from .notify import notify_send
+
+        mm_dd = _dt.date.today().strftime("%m-%d")
+        result["emailed"] = notify_send(
+            subject=f"[quantfox周报] {mm_dd} 五类Top10 + 预测曲线", attach=str(pdf_path))
     typer.echo(json.dumps(result, ensure_ascii=False))
 
 

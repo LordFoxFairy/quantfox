@@ -55,6 +55,11 @@ def build_message(to: str, subject: str, body: str, from_addr: str,
     return msg
 
 
+def notify_send(subject, body="", attach=None, html=False):
+    """通知发送薄封装：当前只有邮件通道；未来加通道只改这里。"""
+    return send_email(None, subject, body, attach=attach, html=html)
+
+
 def send_email(to: str = None, subject: str = "", body: str = "", attach: str = None,
                html: bool = False, config: dict = None) -> dict:
     cfg = config or load_email_config()
