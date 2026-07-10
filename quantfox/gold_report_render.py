@@ -264,7 +264,7 @@ def _top1_reason(board, row):
         return None if score is None else f"深筛分 {score}"
     if board == "high_return":
         r_1y = row.get("r_1y")
-        return None if r_1y is None else f"1年 {r_1y}%（裸收益，风险自负）"
+        return None if r_1y is None else f"1年 {_pct(r_1y)}（裸收益，风险自负）"
     if board == "steady":
         calmar = row.get("calmar")
         return None if calmar is None else f"卡玛 {calmar}"
