@@ -59,6 +59,10 @@ def _compute_one(code: str) -> dict:
     pct = price_percentile(prices, years=3)
     history_years = _history_years(prices)
     flags = compute_flags(met, None, history_years)
+    v = prices["value"].astype(float)
+    tail = v.tail(TRADING_DAYS_PER_YEAR)
+    dist = round(1.0 - float(tail.iloc[-1]) / float(tail.max()), 4) if len(tail) else None
+    ma_ok = bool(v.tail(20).mean() > v.tail(60).mean()) if len(v) >= 60 else None
     return {
         "code": asset.symbol,
         "name": asset.name,
@@ -67,6 +71,8 @@ def _compute_one(code: str) -> dict:
         "max_drawdown": met.get("max_drawdown"),
         "ann_vol": met.get("ann_vol"),
         "price_pct": pct.get("price_pct"),
+        "dist_from_52w_high": dist,
+        "ma20_above_ma60": ma_ok,
         "flags": flags,
         "error": None,
     }

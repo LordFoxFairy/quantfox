@@ -121,6 +121,20 @@ def test_cli_metrics_batch_outputs_json_array(monkeypatch):
         assert "flags" in d
 
 
+def test_compute_one_has_dist_and_ma(monkeypatch):
+    import numpy as np
+
+    n = 400
+    vals = np.concatenate([np.linspace(1.0, 2.0, n - 60), np.linspace(2.0, 1.6, 60)])  # 距高点 -20%
+    df = pd.DataFrame({"date": pd.date_range("2024-01-01", periods=n, freq="B").strftime("%Y-%m-%d"),
+                       "value": vals})
+    monkeypatch.setattr(mb, "resolve", lambda code: Asset(symbol=code, type="otc_fund", name=f"基金{code}"))
+    monkeypatch.setattr(mb, "load_prices", lambda a: df)
+    row = mb._compute_one("000001")
+    assert abs(row["dist_from_52w_high"] - 0.2) < 0.01
+    assert row["ma20_above_ma60"] is False  # 尾段下行
+
+
 @pytest.mark.skipif(True, reason="真实网络冒烟：手工执行，见 .superpowers/sdd/yield-seeker-c1c2-report.md")
 def test_real_network_smoke_20_funds_under_60s():
     """人工跑：QUANTFOX_NET_TEST=1 uv run pytest tests/test_metrics_batch.py -k real_network -m '' --no-skip
