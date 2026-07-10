@@ -473,26 +473,85 @@ def watch_add(symbol: str,
 
 @watch_app.command("buy")
 def watch_buy(symbol: str,
-              amount: float = typer.Option(None, help="买入金额（元）——按金额记一笔，需配 --nav"),
-              nav: float = typer.Option(None, help="支付宝确认的成交净值（T+1 确认后的真实净值）"),
-              entry_price: float = typer.Option(None, help="已知加权成本净值时用（单笔/直填成本，二选一）"),
-              entry_date: str = typer.Option(None, help="下单日期 YYYY-MM-DD，默认今天")):
-    """记一笔买入（支持分批）：给 --amount+--nav 按金额记 lot；或 --entry-price 直填成本。"""
+              amount: float = typer.Option(None, help="买入金额（元）——按金额记一笔"),
+              nav: float = typer.Option(None, help="确认净值（已知就直接给，跳过自动推算）"),
+              entry_price: float = typer.Option(None, help="已知加权成本净值时用（单笔/直填成本）"),
+              entry_date: str = typer.Option(None, help="下单日期 YYYY-MM-DD，默认今天"),
+              order_time: str = typer.Option(None, help="下单时间 HH:MM（判断 15:00 cutoff；默认当前时间）"),
+              confirm_date: str = typer.Option(None, help="手动指定净值确认日（日历不可用时兜底）")):
+    """记一笔买入：--amount 自动按 15:00 cutoff 推确认日取净值；净值未出记 pending 待补。"""
     asset = resolve(symbol)
     entry_date = entry_date or _dt.date.today().isoformat()
     led = _ledger()
     if amount is not None:
-        if nav is None:
-            raise typer.BadParameter("按金额记账需同时给 --nav（支付宝确认的成交净值）")
-        shares = led.add_lot(asset.symbol, asset.type, amount, nav, entry_date)
-        typer.echo(json.dumps({"holding": asset.symbol, "lot": {"amount": amount, "nav": nav, "shares": shares},
-                               "position": led.position(asset.symbol)}, ensure_ascii=False))
+        if nav is not None:  # 用户直接报 App 确认净值（最可信，优先）
+            shares = led.add_lot(asset.symbol, asset.type, amount, nav, entry_date,
+                                 confirm_date=confirm_date or entry_date)
+            typer.echo(json.dumps({"holding": asset.symbol,
+                                   "lot": {"amount": amount, "nav": nav, "shares": shares},
+                                   "position": led.position(asset.symbol)}, ensure_ascii=False))
+            return
+        if confirm_date is None:  # 自动推净值确认日（15:00 cutoff + 交易日历）
+            from .calendar_cn import nav_date_for_order, trade_dates
+
+            t = _dt.time.fromisoformat(order_time) if order_time else _dt.datetime.now().time()
+            try:
+                confirm_date = nav_date_for_order(
+                    _dt.datetime.combine(_dt.date.fromisoformat(entry_date), t), trade_dates())
+            except RuntimeError as e:
+                raise typer.BadParameter(str(e)) from e
+        found = None
+        try:
+            prices = _prices_for(asset)
+            hit = prices[prices["date"].astype(str).str[:10] == confirm_date]
+            if len(hit):
+                found = float(hit["value"].iloc[-1])
+        except Exception as e:  # noqa
+            typer.echo(f"# 取价失败: {e}", err=True)
+        if found is not None:
+            shares = led.add_lot(asset.symbol, asset.type, amount, found, entry_date,
+                                 confirm_date=confirm_date)
+            typer.echo(json.dumps({"holding": asset.symbol,
+                                   "lot": {"amount": amount, "nav": found, "shares": shares,
+                                           "confirm_date": confirm_date},
+                                   "position": led.position(asset.symbol)}, ensure_ascii=False))
+        else:
+            led.add_lot(asset.symbol, asset.type, amount, None, entry_date, confirm_date=confirm_date)
+            typer.echo(json.dumps({"holding": asset.symbol, "pending": True,
+                                   "confirm_date": confirm_date,
+                                   "note": f"确认日 {confirm_date} 净值未公布；出值后跑 "
+                                           f"quantfox watch confirm {asset.symbol} 自动补记"},
+                                  ensure_ascii=False))
     elif entry_price is not None:
         led.mark_bought(asset.symbol, asset.type, entry_price, entry_date)
-        typer.echo(json.dumps({"holding": asset.symbol, "entry_price": entry_price, "entry_date": entry_date},
-                              ensure_ascii=False))
+        typer.echo(json.dumps({"holding": asset.symbol, "entry_price": entry_price,
+                               "entry_date": entry_date}, ensure_ascii=False))
     else:
-        raise typer.BadParameter("给 --amount+--nav（按金额记一笔），或 --entry-price（已知加权成本）")
+        raise typer.BadParameter("给 --amount（自动推确认日/净值，或配 --nav 直填），或 --entry-price")
+
+
+@watch_app.command("confirm")
+def watch_confirm(symbol: str):
+    """补记 pending lots：确认日净值公布后自动回填份额与成本。"""
+    asset = resolve(symbol)
+    led = _ledger()
+    pend = led.pending_lots(asset.symbol)
+    if not pend:
+        typer.echo(json.dumps({"symbol": asset.symbol, "filled": [], "note": "无 pending 笔"},
+                              ensure_ascii=False))
+        return
+    prices = _prices_for(asset)
+    dates = prices["date"].astype(str).str[:10]
+    filled, still = [], []
+    for lot in pend:
+        hit = prices[dates == lot["confirm_date"]]
+        if len(hit):
+            shares = led.fill_lot(lot["id"], float(hit["value"].iloc[-1]))
+            filled.append({"id": lot["id"], "confirm_date": lot["confirm_date"], "shares": shares})
+        else:
+            still.append({"id": lot["id"], "confirm_date": lot["confirm_date"], "note": "净值仍未出"})
+    typer.echo(json.dumps({"symbol": asset.symbol, "filled": filled, "pending": still,
+                           "position": led.position(asset.symbol)}, ensure_ascii=False, indent=2))
 
 
 @watch_app.command("position")

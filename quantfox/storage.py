@@ -112,10 +112,13 @@ class Ledger:
         lots = self.list_lots(symbol)
         if not lots:
             return
-        tot_amt = sum(x["amount"] for x in lots if x["amount"])
-        tot_sh = sum(x["shares"] for x in lots if x["shares"])
+        confirmed = [x for x in lots if x["shares"]]
+        if not confirmed:
+            return  # 全是 pending：净值未出，不动持仓成本
+        tot_amt = sum(x["amount"] for x in confirmed if x["amount"])
+        tot_sh = sum(x["shares"] for x in confirmed)
         wcost = round(tot_amt / tot_sh, 4) if tot_sh else None
-        first = min(x["order_date"] for x in lots)
+        first = min(x["order_date"] for x in confirmed)
         c = self._conn()
         cur = c.execute("UPDATE holdings SET status='holding',entry_price=?,entry_date=? WHERE symbol=?",
                         (wcost, first, symbol))
@@ -129,17 +132,42 @@ class Ledger:
         lots = self.list_lots(symbol)
         if not lots:
             return None
-        tot_amt = round(sum(x["amount"] for x in lots if x["amount"]), 2)
-        tot_sh = round(sum(x["shares"] for x in lots if x["shares"]), 4)
+        confirmed = [x for x in lots if x["shares"]]
+        pending = [x for x in lots if not x["shares"]]
+        tot_amt = round(sum(x["amount"] for x in confirmed if x["amount"]), 2)
+        tot_sh = round(sum(x["shares"] for x in confirmed), 4)
         wcost = round(tot_amt / tot_sh, 4) if tot_sh else None
         out = {"symbol": symbol, "lots": lots, "total_amount": tot_amt,
-               "total_shares": tot_sh, "weighted_cost": wcost}
+               "total_shares": tot_sh, "weighted_cost": wcost, "pending_lots": pending}
+        if pending:
+            out["pending_note"] = f"{len(pending)} 笔净值未出（不计成本），出值后 quantfox watch confirm {symbol} 补记"
         if latest_nav and tot_sh:
             cur_val = round(tot_sh * latest_nav, 2)
             out.update({"latest_nav": latest_nav, "current_value": cur_val,
                         "pnl": round(cur_val - tot_amt, 2),
                         "pnl_pct": round(cur_val / tot_amt - 1, 4) if tot_amt else None})
         return out
+
+    def pending_lots(self, symbol=None):
+        c = self._conn()
+        q = "SELECT * FROM lots WHERE shares IS NULL"
+        args = []
+        if symbol:
+            q += " AND symbol=?"
+            args.append(symbol)
+        return [dict(r) for r in c.execute(q + " ORDER BY order_date, id", args).fetchall()]
+
+    def fill_lot(self, lot_id, nav):
+        """补记 pending lot：净值公布后回填份额。已确认的拒绝改（成本不可覆盖）。"""
+        c = self._conn()
+        row = c.execute("SELECT * FROM lots WHERE id=?", (lot_id,)).fetchone()
+        if row is None or row["shares"] is not None:
+            return None
+        shares = round(row["amount"] / nav, 4)
+        c.execute("UPDATE lots SET confirm_nav=?, shares=? WHERE id=?", (nav, shares, lot_id))
+        c.commit()
+        self._recompute_holding(row["symbol"], row["type"])
+        return shares
 
     def _conn(self):
         c = sqlite3.connect(self.db_path)

@@ -32,3 +32,33 @@ def test_position_pnl(tmp_path):
     pos = led.position("002611", latest_nav=2.40)
     assert pos["current_value"] < 25000
     assert pos["pnl"] < 0 and pos["pnl_pct"] < 0
+
+
+def test_pending_lot_excluded_from_cost(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    led.add_lot("002611", "otc_fund", 8000, 2.8357, "2026-07-07")
+    led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")  # 净值未出
+    pos = led.position("002611")
+    # 加权成本只算已确认那笔，pending 金额不得混入
+    assert pos["total_amount"] == 8000
+    assert pos["weighted_cost"] == 2.8357
+    assert len(pos["pending_lots"]) == 1
+    assert pos["pending_lots"][0]["confirm_date"] == "2026-07-09"
+
+
+def test_fill_lot_confirms_pending(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    led.add_lot("002611", "otc_fund", 12000, None, "2026-07-08", confirm_date="2026-07-09")
+    lot_id = led.pending_lots("002611")[0]["id"]
+    shares = led.fill_lot(lot_id, 2.8219)
+    assert abs(shares - round(15000 / 2.8219, 4)) < 0.001
+    assert led.pending_lots("002611") == []
+    pos = led.position("002611")
+    assert pos["total_amount"] == 12000 and pos["weighted_cost"] == 2.8219
+
+
+def test_fill_lot_ignores_confirmed(tmp_path):
+    led = Ledger(tmp_path / "t.db")
+    led.add_lot("002611", "otc_fund", 8000, 2.8357, "2026-07-07")
+    lot_id = led.list_lots("002611")[0]["id"]
+    assert led.fill_lot(lot_id, 9.9) is None  # 已确认的不允许改（成本不可被覆盖）
