@@ -75,6 +75,16 @@ class Ledger:
               note TEXT,
               created_at TEXT NOT NULL
             );
+            CREATE TABLE IF NOT EXISTS alerts (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              symbol TEXT NOT NULL, kind TEXT NOT NULL, state TEXT NOT NULL,
+              message TEXT, created_at TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS report_issues (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              issue_date TEXT NOT NULL, board TEXT NOT NULL, rank INTEGER NOT NULL,
+              symbol TEXT NOT NULL, name TEXT, nav_at_issue REAL, created_at TEXT NOT NULL
+            );
             """
         )
         cols = [r["name"] for r in c.execute("PRAGMA table_info(predictions)").fetchall()]
@@ -392,3 +402,39 @@ class Ledger:
         r = c.execute("SELECT * FROM reconciliations WHERE symbol=? ORDER BY id DESC LIMIT 1",
                       (symbol,)).fetchone()
         return dict(r) if r else None
+
+    # --- 告警去重状态（append-only）与周报榜单存档 ---
+    def add_alert(self, symbol, kind, state, message=""):
+        c = self._conn()
+        cur = c.execute("INSERT INTO alerts (symbol,kind,state,message,created_at) VALUES (?,?,?,?,?)",
+                        (symbol, kind, state, message, datetime.now(timezone.utc).isoformat()))
+        c.commit()
+        return cur.lastrowid
+
+    def latest_alert(self, symbol, kind):
+        c = self._conn()
+        r = c.execute("SELECT * FROM alerts WHERE symbol=? AND kind=? ORDER BY id DESC LIMIT 1",
+                      (symbol, kind)).fetchone()
+        return dict(r) if r else None
+
+    def add_report_issue(self, issue_date, board, rank, symbol, name, nav_at_issue):
+        c = self._conn()
+        cur = c.execute(
+            "INSERT INTO report_issues (issue_date,board,rank,symbol,name,nav_at_issue,created_at) "
+            "VALUES (?,?,?,?,?,?,?)",
+            (issue_date, board, rank, symbol, name, nav_at_issue,
+             datetime.now(timezone.utc).isoformat()))
+        c.commit()
+        return cur.lastrowid
+
+    def issues_for(self, issue_date):
+        c = self._conn()
+        return [dict(r) for r in c.execute(
+            "SELECT * FROM report_issues WHERE issue_date=? ORDER BY board, rank",
+            (issue_date,)).fetchall()]
+
+    def latest_issue_date(self, before):
+        c = self._conn()
+        r = c.execute("SELECT MAX(issue_date) d FROM report_issues WHERE issue_date<?",
+                      (before,)).fetchone()
+        return r["d"] if r and r["d"] else None
