@@ -42,7 +42,7 @@ def test_marketplace_lists_all_skills():
 
 def test_honesty_matrix_all_skills():
     # 7 skill × 铁律关键词全覆盖（grep 矩阵验收，spec §3）
-    keywords = ["中位", "0.85", "幸存者偏差", "from_similar_valuation", "QUANTFOX_HOME", "mandate"]
+    keywords = ["中位", "0.85", "幸存者偏差", "from_similar_valuation", "QUANTFOX_HOME", "mandate", "v15"]
     for name in EXPECTED:
         text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
         for kw in keywords:

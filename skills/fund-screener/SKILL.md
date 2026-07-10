@@ -10,7 +10,7 @@ description: >-
 
 从上万只里选"最好"，**绝不能直接把收益榜端给用户**——那样榜首必然是涨疯了的过热板块（追高陷阱）。`quantfox screen` 已升级为**多因子深筛**：赢家 + 动能不过热 + 回调不追高 + 去重分散。但它仍只是**候选池**，要再精筛 + 舆情。
 
-## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v14，以框架为准）
+## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v15，以框架为准）
 - **看中位不看均值**；估值分位 **>0.85 过闸门**（剔除/降级，相对分≠能买）；涉及排名/回测必提**幸存者偏差**；高位前瞻以 `from_similar_valuation` 为准，样本不足明说别当真。
 - **第 0 步先 `quantfox mandate show`**：有档案 → 金额/仓位建议受单标的与主题上限约束，结论对齐用户目标与期限；无档案 → 一句话提示可 `quantfox mandate set` 建立，不阻断。
 - **产物落 `QUANTFOX_HOME`**（默认 `~/.quantfox/`），绝不写进代码仓库；对话里的预期收益/对账结论用 `quantfox watch expect` / `watch reconcile` 落库，不许只留在对话里。
@@ -22,6 +22,8 @@ description: >-
 - 过去收益 ≠ 未来收益，结论里必须说清。
 
 ## 三级深筛流程（跑全市场，别只看前12）
+
+- **第 0.5 步 · 读最新周报**：若 `~/.quantfox/reports/gold/` 有最近一期 gold-report，先读它的五榜与回看战绩作候选起点与热度语境，避免每次从零扫全市场。
 
 1. **先看大盘 + 明确需求**：先 `quantfox market-valuation` 看全A大盘贵不贵——**偏贵/贵时建议 `--style steady` 或 `pullback`**，别追顶。再问清投资期限（短线1-3月/中长期）、风险偏好。风格：`balanced`（默认，动能不追山顶）·`steady`（更稳、更怕过热）·`pullback`（找回调买点）·`momentum`（认动能，仍标过热）。
 2. **多因子粗筛全市场**：`quantfox screen --type <类型> --style <风格> --top 30 [--exclude-overheated]`。
