@@ -5,6 +5,7 @@ import platform
 import shutil
 import subprocess
 from pathlib import Path
+from xml.sax.saxutils import escape
 
 from .config import data_dir
 
@@ -34,7 +35,9 @@ def plist_xml(label, program_args, calendar, log_path) -> str:
         return f"<dict>{inner}</dict>"
 
     cal = "".join(dic(c) for c in calendar)
-    args = "".join(f"<string>{a}</string>" for a in program_args)
+    args = "".join(f"<string>{escape(str(a))}</string>" for a in program_args)
+    label = escape(str(label))
+    log_path = escape(str(log_path))
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
@@ -53,7 +56,7 @@ def _jobs(intraday):
     return {n: JOBS[n] for n in names}
 
 
-def install(intraday=False, exe=None, agents_dir=None, launchctl=None):
+def install(intraday=False, exe=None, agents_dir=None, launchctl=None, log_dir=None):
     if platform.system() != "Darwin" and agents_dir is None:
         raise RuntimeError("仅支持 macOS launchd；其他平台请自行 crontab，例如：30 21 * * 5 quantfox gold-report --email")
     exe = exe or shutil.which("quantfox")
@@ -62,7 +65,7 @@ def install(intraday=False, exe=None, agents_dir=None, launchctl=None):
     agents_dir = Path(agents_dir or _default_agents_dir())
     agents_dir.mkdir(parents=True, exist_ok=True)
     launchctl = launchctl or _default_launchctl
-    logs = data_dir() / "logs"
+    logs = Path(log_dir) if log_dir is not None else data_dir() / "logs"
     logs.mkdir(parents=True, exist_ok=True)
     written = []
     for label, job in _jobs(intraday).items():
@@ -88,14 +91,15 @@ def uninstall(agents_dir=None, launchctl=None):
     return removed
 
 
-def status(agents_dir=None, launchctl=None):
+def status(agents_dir=None, launchctl=None, log_dir=None):
     agents_dir = Path(agents_dir or _default_agents_dir())
     launchctl = launchctl or _default_launchctl
+    log_dir = Path(log_dir) if log_dir is not None else data_dir() / "logs"
     loaded = launchctl(["list"]) or ""
     out = {}
     for label in JOBS:
         p = agents_dir / f"{label}.plist"
-        log = data_dir() / "logs" / f"{label}.log"
+        log = Path(log_dir) / f"{label}.log"
         tail = ""
         if log.exists():
             lines = log.read_text(encoding="utf-8", errors="ignore").strip().splitlines()

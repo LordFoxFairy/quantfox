@@ -14,7 +14,7 @@ def test_install_writes_two_plists_by_default(tmp_path, monkeypatch):
     monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path / "home"))
     calls = []
     paths = sm.install(exe="/opt/quantfox", agents_dir=tmp_path / "agents",
-                       launchctl=lambda args: calls.append(args))
+                       launchctl=lambda args: calls.append(args), log_dir=tmp_path / "logs")
     names = sorted(p.name for p in paths)
     assert names == ["com.quantfox.patrol.plist", "com.quantfox.weekly.plist"]
     flat = [" ".join(c) for c in calls]
@@ -25,25 +25,28 @@ def test_install_writes_two_plists_by_default(tmp_path, monkeypatch):
 
 def test_install_intraday_adds_third(tmp_path):
     paths = sm.install(intraday=True, exe="/opt/quantfox", agents_dir=tmp_path / "agents",
-                       launchctl=lambda args: None)
+                       launchctl=lambda args: None, log_dir=tmp_path / "logs")
     assert any(p.name == "com.quantfox.intraday.plist" for p in paths)
 
 
 def test_install_without_exe_raises(tmp_path, monkeypatch):
     monkeypatch.setattr(sm.shutil, "which", lambda name: None)
     try:
-        sm.install(agents_dir=tmp_path / "agents", launchctl=lambda a: None)
+        sm.install(agents_dir=tmp_path / "agents", launchctl=lambda a: None,
+                   log_dir=tmp_path / "logs")
         assert False, "should raise"
     except RuntimeError as e:
         assert "uv tool install" in str(e)
 
 
 def test_uninstall_removes(tmp_path):
-    sm.install(exe="/opt/quantfox", agents_dir=tmp_path / "agents", launchctl=lambda a: None)
+    sm.install(exe="/opt/quantfox", agents_dir=tmp_path / "agents", launchctl=lambda a: None,
+               log_dir=tmp_path / "logs")
     removed = sm.uninstall(agents_dir=tmp_path / "agents", launchctl=lambda a: None)
     assert len(removed) >= 2 and not list((tmp_path / "agents").glob("com.quantfox.*"))
 
 
 def test_status_reports_missing(tmp_path):
-    st = sm.status(agents_dir=tmp_path / "agents", launchctl=lambda a: "")
+    st = sm.status(agents_dir=tmp_path / "agents", launchctl=lambda a: "",
+                   log_dir=tmp_path / "logs")
     assert st["com.quantfox.weekly"]["installed"] is False
