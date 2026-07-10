@@ -111,6 +111,22 @@ def metrics(query: str):
     typer.echo(json.dumps(compute_metrics(_prices_for(asset)), ensure_ascii=False, indent=2))
 
 
+@app.command("metrics-batch")
+def metrics_batch_cmd(
+    codes: list[str] = typer.Argument(..., help="6 位基金代码，空格分隔，支持多只"),
+    max_workers: int = typer.Option(4, help="并发线程数（akshare 限流保守，默认4）"),
+    retries: int = typer.Option(1, help="单只失败重试次数"),
+):
+    """C1：批量算风险指标（夏普/卡玛/最大回撤/年化波动/估值分位），只拉净值不拉 profile/持仓/评级，
+    并发+重试+失败标记，用于 fund-screener 对 top-N 候选做快速初筛。同时附 C2 假稳 flags。"""
+    from .metrics_batch import metrics_batch as run_metrics_batch
+
+    typer.echo(json.dumps(
+        run_metrics_batch(codes, max_workers=max_workers, retries=retries),
+        ensure_ascii=False, indent=2,
+    ))
+
+
 @app.command()
 def profile(query: str):
     """基金基本面：经理/持仓/评级（黄金不适用，调试）。"""

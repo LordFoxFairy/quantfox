@@ -12,7 +12,36 @@ from .metrics import compute_metrics
 from .percentile import price_percentile
 
 
-SCHEMA_VERSION = "2.0"
+SCHEMA_VERSION = "2.1"
+
+TRADING_DAYS_PER_YEAR = 252
+
+# C2 假稳检测阈值（spec §2 C2 / §4 实证反例：014502 净值异常平滑、610108 债基踩雷）
+NAV_SPIKE_MAX_DD = 0.03      # |max_drawdown| < 3%
+NAV_SPIKE_MIN_VOL = 0.08     # 且 ann_vol > 8% → 回撤/波动不匹配，净值可疑
+BOND_EQUITY_DD = -0.10       # 名为债基但 max_drawdown < -10%
+SHORT_HISTORY_YEARS = 3.0    # 净值历史 < 3 年
+
+
+def compute_flags(
+    metrics: dict, fund_type: Optional[str], history_years: Optional[float]
+) -> list[str]:
+    """假稳/风险错配检测。输入缺失时对应 flag 不判，不误报。"""
+    flags: list[str] = []
+    max_dd = metrics.get("max_drawdown")
+    ann_vol = metrics.get("ann_vol")
+
+    if max_dd is not None and ann_vol is not None:
+        if abs(max_dd) < NAV_SPIKE_MAX_DD and ann_vol > NAV_SPIKE_MIN_VOL:
+            flags.append("nav_spike_suspect")
+
+    if fund_type and "债" in fund_type and max_dd is not None and max_dd < BOND_EQUITY_DD:
+        flags.append("bond_equity_risk")
+
+    if history_years is not None and history_years < SHORT_HISTORY_YEARS:
+        flags.append("short_history")
+
+    return flags
 
 
 class PriceBlock(BaseModel):
@@ -41,6 +70,7 @@ class EvidenceCard(BaseModel):
     percentile: dict = {}
     track_record: Optional[dict] = None
     data_quality: DataQuality = DataQuality()
+    flags: list[str] = []  # C2 假稳/风险错配检测：nav_spike_suspect / bond_equity_risk / short_history
 
     def to_json(self) -> str:
         return json.dumps(self.model_dump(), ensure_ascii=False, indent=2)
@@ -88,6 +118,7 @@ def build_evidence(
     indicators: dict = {}
     pct: dict = {}
     ohlc = "unavailable"
+    history_years: Optional[float] = None
 
     if prices is None or len(prices) == 0:
         price = PriceBlock()
@@ -103,6 +134,7 @@ def build_evidence(
             latest=float(prices["value"].iloc[-1]),
             latest_date=str(prices["date"].iloc[-1]),
         )
+        history_years = len(prices) / TRADING_DAYS_PER_YEAR
         pq = "ok" if len(prices) >= 252 else "partial"
         if pq == "partial":
             notes.append("价格数据不足一年，指标与风险绩效置信度下调")
@@ -128,9 +160,13 @@ def build_evidence(
         pfq = "partial"
         notes.append("部分基本面/持仓数据缺失")
 
+    fund_type = (profile.get("basic") or {}).get("type") if profile.get("applicable") else None
+    flags = compute_flags(metrics, fund_type, history_years)
+
     return EvidenceCard(
         asset=asset, price=price, returns=returns, metrics=metrics,
         profile=profile, indicators=indicators, percentile=pct,
         track_record=track_record,
         data_quality=DataQuality(price=pq, ohlc=ohlc, profile=pfq, notes=notes),
+        flags=flags,
     )
