@@ -86,3 +86,18 @@
   9. **成本与容量**：费率、赎回费(7日1.5%)、规模过大导致的收益衰减，纳入净收益。
   10. **保本优先 + 诚实边界**：先不亏再求收益；永不承诺、永不用点数字包装确定性——"高收益+高概率+短期"若互斥，必须当面点破。
 - 可另起 `docs/quant-fund-selection-methodology.md` 展开，fund-screener 引用之。
+
+### B7.（P1·真正的"打磨整个 skills"）跨 skill 一致性 —— 新能力/v13 铁律只落在 fund-screener 一家
+- **场景**：接管后 grep 7 个 SKILL.md 发现，本会话建的能力与诚实铁律**大多只写进了 fund-screener**，其它 skill 未同步 → 用户在别的入口（尤其单只分析）体验不到。
+- **实测覆盖缺口**（2026-07-10 grep）：
+  - `forecast` 前瞻分布：仅 fund-screener 有；**fund-analyze（单只深度分析）竟无**——正是用户本轮"没前瞻没法判断"的痛点入口；fund-watch（持仓）也该有"从当前位置买/持有的未来赔率"。
+  - `看中位不看均值`：仅 fund-screener；fund-analyze / fund-compare 都报收益，须同步。
+  - `估值闸门(>0.85)`：analyze/screener/sizer 有；fund-compare / portfolio-manager / fund-watch 缺。
+- **建议（我作为 owner 的打磨主线）**：
+  1. ✅ **【已完成 2026-07-10】fund-analyze SOP 加 `quantfox forecast <code>`**：新增第5步"前瞻收益分布"（含 `from_similar_valuation` 估值条件化）+ 铁律"看中位不看均值/高位打折/样本不足别当真" + 对话侧给前瞻一句话 + description 列出前瞻。`test_skill_file.py` 4 绿。
+  2. fund-watch 持仓监控加 forecast（"这只从现在起未来赔率"）。
+  3. 把"看中位不看均值 / 估值闸门 / 幸存者偏差"三条诚实铁律，抽成一段共享话术，**7 个 skill 统一引用**（避免各写各的、漏的漏）。
+- **非 gap（已核实，别重做）**：保本优先在 `prompts/analysis_framework.md` 框架层，全 skill 隐式遵循；forecast 小样本已保护（all≥60 / conditional≥30）。
+
+### 剩余代码项（P1）
+- **A2 自动 T+1 对账**：现为 SOP 指南，唯一未落代码的记账项。可选实现：`watch buy` 按 15:00 cutoff + 交易日历自动推确认日/净值，或对账用户报的 App 收益。
