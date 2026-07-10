@@ -25,6 +25,13 @@ def test_weekend_not_stale():
     assert item["status"] == "ok"
 
 
+def test_undeterminable_freshness_is_not_ok():
+    item = check_freshness("000001", _prices("2026-07-10"), ["2099-01-01"], today="2026-07-10")
+    assert item["status"] == "stale"
+    s = summarize_health([item])
+    assert s["healthy"] is False and len(s["detail"]) == 1
+
+
 def test_summarize_never_healthy_with_failures():
     items = [health_item("a", "ok"), health_item("b", "failed", note="取价失败"),
              health_item("c", "stale", as_of="2026-07-09")]

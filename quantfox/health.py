@@ -7,13 +7,16 @@ def health_item(symbol, status, as_of=None, note=""):
 
 
 def check_freshness(symbol, prices, trade_dates_list, today):
-    """最新净值日 < 最近一个交易日(≤today) 即 stale。"""
+    """最新净值日 < 最近一个交易日(≤today) 即 stale。
+
+    trade_dates_list 须为升序 ISO 日期（calendar_cn.trade_dates 已保证）。
+    """
     if prices is None or len(prices) == 0:
         return health_item(symbol, "failed", note="无净值数据")
     last_nav = str(prices["date"].iloc[-1])[:10]
     past = [d for d in trade_dates_list if d <= today]
     if not past:
-        return health_item(symbol, "ok", as_of=last_nav, note="日历不含今日前交易日，无法判 stale")
+        return health_item(symbol, "stale", as_of=last_nav, note="日历不含今日前交易日，无法判定新鲜度")
     latest_trade = past[-1]
     if last_nav < latest_trade:
         return health_item(symbol, "stale", as_of=last_nav, note=f"最近交易日 {latest_trade} 净值未出")
