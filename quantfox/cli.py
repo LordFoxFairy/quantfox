@@ -554,6 +554,72 @@ def watch_confirm(symbol: str):
                            "position": led.position(asset.symbol)}, ensure_ascii=False, indent=2))
 
 
+@watch_app.command("expect")
+def watch_expect(symbol: str = typer.Argument(None)):
+    """当日预期收益（落库留痕）：按最新净值与已确认份额算预期，写入 reconciliations。"""
+    led = _ledger()
+    if symbol:
+        symbols = [resolve(symbol).symbol]
+    else:
+        symbols = [h["symbol"] for h in led.list_holdings() if h["status"] == "holding"]
+    out = []
+    for sym in symbols:
+        try:
+            prices = _prices_for(resolve(sym))
+        except Exception as e:  # noqa
+            out.append({"symbol": sym, "error": f"取价失败: {e}"})
+            continue
+        exp = led.daily_expectation(sym, prices)
+        if exp is None:
+            out.append({"symbol": sym, "note": "无已确认分笔或净值不足两天，算不了预期"})
+            continue
+        led.add_reconciliation(symbol=sym, trade_date=exp["trade_date"],
+                               expected_daily_pnl=exp["expected_daily_pnl"],
+                               expected_total_pnl=exp["expected_total_pnl"], verdict="pending")
+        out.append({**exp, "note": "已落库；拿到 App 实际数后跑 watch reconcile 比对"})
+    typer.echo(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+@watch_app.command("reconcile")
+def watch_reconcile(symbol: str,
+                    app_profit: float = typer.Option(..., "--app-profit", help="App 显示的当日收益（元，亏为负）"),
+                    date: str = typer.Option(None, help="净值日 YYYY-MM-DD，默认最新")):
+    """与 App 对账：比对预期与实际当日收益，判定 ok/rounding/mismatch 并落库。"""
+    from .storage import classify_delta
+
+    asset = resolve(symbol)
+    led = _ledger()
+    prices = _prices_for(asset)
+    exp = led.daily_expectation(asset.symbol, prices)
+    if exp is None:
+        typer.echo(json.dumps({"symbol": asset.symbol, "error": "无已确认分笔或净值不足，先记账"},
+                              ensure_ascii=False))
+        raise typer.Exit(1)
+    if date and date != exp["trade_date"]:
+        rows = [r for r in led.reconciliations_for(asset.symbol, trade_date=date)
+                if r["expected_daily_pnl"] is not None]
+        if not rows:
+            typer.echo(json.dumps({"symbol": asset.symbol, "error": f"{date} 无预期记录，只能对最新净值日 {exp['trade_date']}"},
+                                  ensure_ascii=False))
+            raise typer.Exit(1)
+        exp = {"symbol": asset.symbol, "trade_date": date,
+               "expected_daily_pnl": rows[-1]["expected_daily_pnl"],
+               "expected_total_pnl": rows[-1]["expected_total_pnl"]}
+    delta = round(app_profit - exp["expected_daily_pnl"], 2)
+    verdict = classify_delta(delta)
+    note = "" if verdict == "ok" else (
+        "四舍五入级差异，可接受" if verdict == "rounding"
+        else "对不上：排查确认日(T/T+1)、份额、费率口径；把 App 成本净值报给我重新对齐")
+    led.add_reconciliation(symbol=asset.symbol, trade_date=exp["trade_date"],
+                           expected_daily_pnl=exp["expected_daily_pnl"], app_daily_pnl=app_profit,
+                           delta=delta, expected_total_pnl=exp.get("expected_total_pnl"),
+                           verdict=verdict, note=note)
+    typer.echo(json.dumps({"symbol": asset.symbol, "trade_date": exp["trade_date"],
+                           "expected": exp["expected_daily_pnl"], "app": app_profit,
+                           "delta": delta, "verdict": verdict, "note": note},
+                          ensure_ascii=False, indent=2))
+
+
 @watch_app.command("position")
 def watch_position(symbol: str):
     """查看某只持仓：分笔明细 + 加权成本 + 现值 + 浮盈亏。"""
@@ -569,6 +635,10 @@ def watch_position(symbol: str):
         pos = led.position(asset.symbol, latest_nav=latest)
     except Exception:  # noqa
         pass
+    rec = led.latest_reconciliation(asset.symbol)
+    if rec:
+        pos["last_reconcile"] = {"trade_date": rec["trade_date"], "verdict": rec["verdict"],
+                                 "delta": rec["delta"]}
     typer.echo(json.dumps(pos, ensure_ascii=False, indent=2))
 
 

@@ -25,6 +25,16 @@ def round_trip_cost(horizon_trading_days: int, asset_type: str, subscribe: float
     return round(subscribe + redeem, 4)
 
 
+def classify_delta(delta: float) -> str:
+    """对账判定：|delta|≤0.05 元四舍五入误差；≤0.5 元口径小差；再大就是真不对。"""
+    a = abs(delta)
+    if a <= 0.05:
+        return "ok"
+    if a <= 0.5:
+        return "rounding"
+    return "mismatch"
+
+
 class Ledger:
     def __init__(self, db_path):
         self.db_path = str(db_path)
@@ -52,6 +62,18 @@ class Ledger:
               id INTEGER PRIMARY KEY AUTOINCREMENT,
               symbol TEXT, type TEXT, amount REAL, order_date TEXT,
               confirm_nav REAL, shares REAL, confirm_date TEXT, note TEXT
+            );
+            CREATE TABLE IF NOT EXISTS reconciliations (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              symbol TEXT NOT NULL,
+              trade_date TEXT NOT NULL,
+              expected_daily_pnl REAL,
+              app_daily_pnl REAL,
+              delta REAL,
+              expected_total_pnl REAL,
+              verdict TEXT,
+              note TEXT,
+              created_at TEXT NOT NULL
             );
             """
         )
@@ -324,3 +346,49 @@ class Ledger:
                             "gap": round(ac - hr, 3)})
         return {"n": len(rows), "buckets": buckets,
                 "note": "命中率已扣成本；gap>0=过度自信，<0=过度保守；理想≈0。样本<20 仅供参考"}
+
+    # --- 对账留痕（append-only）：预期收益/对账结论必须落库，不许只留在对话里 ---
+    def daily_expectation(self, symbol, prices: pd.DataFrame):
+        """t 日预期当日收益 = confirm_date < t 的已确认份额 × (nav_t − nav_{t−1})（对齐 App 口径：
+        确认当日不计当日盈亏）。累计浮盈亏只算已确认笔。"""
+        lots = [x for x in self.list_lots(symbol) if x["shares"]]
+        if not lots or prices is None or len(prices) < 2:
+            return None
+        s = prices.reset_index(drop=True)
+        dates = s["date"].astype(str).str[:10]
+        t, prev = dates.iloc[-1], dates.iloc[-2]
+        nav_t, nav_prev = float(s["value"].iloc[-1]), float(s["value"].iloc[-2])
+        counted = round(sum(x["shares"] for x in lots if (x["confirm_date"] or "") < t), 4)
+        all_sh = round(sum(x["shares"] for x in lots), 4)
+        invested = round(sum(x["amount"] for x in lots if x["amount"]), 2)
+        return {"symbol": symbol, "trade_date": t, "prev_date": prev,
+                "expected_daily_pnl": round(counted * (nav_t - nav_prev), 2),
+                "expected_total_pnl": round(all_sh * nav_t - invested, 2),
+                "shares_counted": counted}
+
+    def add_reconciliation(self, *, symbol, trade_date, expected_daily_pnl=None,
+                           app_daily_pnl=None, delta=None, expected_total_pnl=None,
+                           verdict="pending", note=""):
+        c = self._conn()
+        cur = c.execute(
+            "INSERT INTO reconciliations (symbol,trade_date,expected_daily_pnl,app_daily_pnl,"
+            "delta,expected_total_pnl,verdict,note,created_at) VALUES (?,?,?,?,?,?,?,?,?)",
+            (symbol, trade_date, expected_daily_pnl, app_daily_pnl, delta,
+             expected_total_pnl, verdict, note, datetime.now(timezone.utc).isoformat()))
+        c.commit()
+        return cur.lastrowid
+
+    def reconciliations_for(self, symbol, trade_date=None):
+        c = self._conn()
+        q = "SELECT * FROM reconciliations WHERE symbol=?"
+        args = [symbol]
+        if trade_date:
+            q += " AND trade_date=?"
+            args.append(trade_date)
+        return [dict(r) for r in c.execute(q + " ORDER BY id", args).fetchall()]
+
+    def latest_reconciliation(self, symbol):
+        c = self._conn()
+        r = c.execute("SELECT * FROM reconciliations WHERE symbol=? ORDER BY id DESC LIMIT 1",
+                      (symbol,)).fetchone()
+        return dict(r) if r else None
