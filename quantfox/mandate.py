@@ -43,6 +43,8 @@ def validate(m: dict) -> list[str]:
 
 
 def save_mandate(m: dict) -> Path:
+    m = {**m}
+    m.setdefault("schema_version", SCHEMA_VERSION)
     errors = validate(m)
     if errors:
         raise ValueError("；".join(errors))

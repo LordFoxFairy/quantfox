@@ -38,6 +38,12 @@ def test_partial_mandate_ok(monkeypatch, tmp_path):
     assert load_mandate()["deployable_capital"] == 30000.0
 
 
+def test_save_defaults_schema_version(monkeypatch, tmp_path):
+    monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
+    save_mandate({"deployable_capital": 30000.0})
+    assert load_mandate()["schema_version"] == "1.0"
+
+
 def test_validation_rejects_bad_values(monkeypatch, tmp_path):
     monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
     bad = _base()
