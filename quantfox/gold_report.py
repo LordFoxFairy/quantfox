@@ -95,7 +95,10 @@ def build_boards(universes, pool_metrics, screen_rows, top=10) -> dict:
         base.update({"r_1y": float(u["r_1y"]), "sort_key": float(u["r_1y"])})
         high_return.append(base)
 
+    # 以下三榜从同一批 rows 里筛选：先复制再写 sort_key，避免同一只基金
+    # 命中多榜时 sort_key 被后算的榜覆盖（跨榜共享可变 dict 的污染）。
     steady = sorted(_pareto_steady(rows), key=lambda r: r["calmar"], reverse=True)[:top]
+    steady = [dict(r) for r in steady]
     for r in steady:
         r["sort_key"] = r["calmar"]
 
@@ -103,13 +106,14 @@ def build_boards(universes, pool_metrics, screen_rows, top=10) -> dict:
                 if (r["calmar"] or 0) > 0.5 and (r["dist_from_52w_high"] or 0) > 0.15]
     pullback = sorted(pullback, key=lambda r: (r["dist_from_52w_high"] or 0) * (r["calmar"] or 0),
                       reverse=True)[:top]
+    pullback = [dict(r) for r in pullback]
     for r in pullback:
         r["sort_key"] = round((r["dist_from_52w_high"] or 0) * (r["calmar"] or 0), 4)
 
     bonds = [r for r in rows if r["fund_type"] == "债券型"]
     clean = sorted([r for r in bonds if not r["flags"]], key=lambda r: r["ann_vol"] or 9)
     flagged = sorted([r for r in bonds if r["flags"]], key=lambda r: r["ann_vol"] or 9)
-    defensive = (clean + flagged)[:top]  # 假稳不剔除但沉底标红（渲染层）
+    defensive = [dict(r) for r in (clean + flagged)[:top]]  # 假稳不剔除但沉底标红（渲染层）
     for r in defensive:
         r["sort_key"] = r["ann_vol"]
 

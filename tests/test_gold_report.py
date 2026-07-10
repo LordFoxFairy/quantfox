@@ -62,6 +62,23 @@ def test_boards_shapes_and_gates():
     assert all(r["price_pct"] > 0.85 for r in hi)
 
 
+def test_sort_key_not_polluted_across_boards():
+    pool = select_pool(UNIVERSES)
+    metrics = [_met(c) for c in pool]
+    # 一只债券型：同时命中 稳健(Pareto)、回调捡漏(卡玛1.5×打折30%)、防守(债券型低波)
+    metrics[0].update(fund_type="债券型", calmar=1.5, sharpe=2.0,
+                      dist_from_52w_high=0.30, ann_vol=0.05, flags=[])
+    boards = build_boards(UNIVERSES, metrics, [], top=10)
+    code = metrics[0]["code"]
+    steady_row = next(r for r in boards["steady"] if r["code"] == code)
+    pull_row = next(r for r in boards["pullback"] if r["code"] == code)
+    def_row = next(r for r in boards["defensive"] if r["code"] == code)
+    assert steady_row["sort_key"] == 1.5           # 卡玛
+    assert pull_row["sort_key"] == 0.45            # 0.30*1.5
+    assert def_row["sort_key"] == 0.05             # 年化波动
+    assert steady_row is not pull_row and pull_row is not def_row
+
+
 def test_name_theme_mismatch_flagged():
     pool = select_pool(UNIVERSES)
     metrics = [_met(c) for c in pool]
