@@ -5,11 +5,12 @@
 自身不触网、不读时钟——CLI 层负责接线真实依赖（resolve/_prices_for/calendar_cn.trade_dates/
 date.today()）。
 
-告警状态机（六个 kind，全部走同一套"状态变了才追加"去重）：
+告警状态机（七个 kind，全部走同一套"状态变了才追加"去重）：
   data_failure      取价异常 triggered；本次取价成功 clear
   exit_signal       check_holding status=="需离场" triggered；不再是则 clear
-  early_warning     check_holding status=="留意" triggered（--intraday 模式复用同一 kind，
-                     state 换成 f"intraday-{today}-{up|down}" 以按日按方向去重）
+  early_warning     check_holding status=="留意" triggered（收盘巡检专用状态空间）
+  intraday_move     --intraday 模式专用，独立 kind（不与 early_warning 共用状态空间，
+                     避免污染收盘去重），state 为 f"intraday-{today}-{up|down}" 按日按方向去重
   valuation_high    price_pct > 0.85 triggered；回落则 clear
   pending_confirm   存在净值超 2 个交易日未出的 pending lot triggered；无则 clear
   reconcile_mismatch  latest_reconciliation verdict=="mismatch" triggered；否则 clear
@@ -31,7 +32,8 @@ GOLD_INTRADAY_THRESHOLD = 0.015
 KIND_LABELS = {
     "data_failure": "取价失败",
     "exit_signal": "需离场",
-    "early_warning": "留意/盘中异动",
+    "early_warning": "留意",
+    "intraday_move": "盘中异动",
     "valuation_high": "估值高位",
     "pending_confirm": "净值迟迟未出",
     "reconcile_mismatch": "对账不符",
@@ -184,7 +186,8 @@ def run_patrol(led, resolve_fn, prices_fn, trade_dates_list, today, weekly_cone=
 def run_intraday_patrol(led, holdings, estimate_fn, today) -> dict:
     """盘中异动预警：holdings 为 [{symbol,type}]（通常只巡 status=='holding' 的）；
     estimate_fn(symbol, asset_type) -> float|None，涨跌幅（小数，非百分比，取不到给 None）。
-    超阈值(基金 2%/黄金 1.5%)走 early_warning kind 同一套去重，state 按"日期+方向"编码，
+    超阈值(基金 2%/黄金 1.5%)走独立的 intraday_move kind 去重（不占用收盘 early_warning 的
+    状态空间，避免盘中状态污染收盘的"不再留意"判定），state 按"日期+方向"编码，
     同日同方向第二次自动沉默；盘中不落 reconciliations。"""
     new_alerts = []
     for h in holdings:
@@ -199,6 +202,6 @@ def run_intraday_patrol(led, holdings, estimate_fn, today) -> dict:
         if abs(chg) <= threshold:
             continue
         state = f"intraday-{today}-{'up' if chg > 0 else 'down'}"
-        _emit(led, new_alerts, symbol, "early_warning", state,
+        _emit(led, new_alerts, symbol, "intraday_move", state,
               f"盘中估算 {chg * 100:+.2f}%，超阈值 {threshold * 100:.1f}%")
     return {"new_alerts": new_alerts}

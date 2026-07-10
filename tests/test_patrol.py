@@ -214,7 +214,7 @@ def test_intraday_patrol_triggers_once_then_silent_same_day(tmp_path):
     r1 = run_intraday_patrol(led, holdings, lambda s, t: 0.03, "2026-07-10")
     assert len(r1["new_alerts"]) == 1
     assert r1["new_alerts"][0]["state"] == "intraday-2026-07-10-up"
-    assert r1["new_alerts"][0]["kind"] == "early_warning"
+    assert r1["new_alerts"][0]["kind"] == "intraday_move"
 
     r2 = run_intraday_patrol(led, holdings, lambda s, t: 0.03, "2026-07-10")
     assert r2["new_alerts"] == []  # 同日同方向第二次沉默
@@ -238,6 +238,24 @@ def test_intraday_patrol_unavailable_estimate_is_silent(tmp_path):
     assert r["new_alerts"] == []
 
 
+def test_intraday_kind_does_not_pollute_close_early_warning_state(tmp_path):
+    """intraday_move 与 early_warning 是独立状态空间：盘中触发不能让收盘巡检误判"已有留意在案"，
+    也不能让收盘巡检的"不再留意" clear 邮件被盘中状态污染。"""
+    led = Ledger(tmp_path / "t.db")
+    led.mark_bought("000001", "otc_fund", 100.0, "2023-01-02")
+
+    run_intraday_patrol(led, [{"symbol": "000001", "type": "otc_fund"}], lambda s, t: 0.03, "2026-07-10")
+    assert led.latest_alert("000001", "early_warning") is None  # 盘中不写 early_warning kind
+    assert led.latest_alert("000001", "intraday_move") is not None
+
+    # 收盘巡检走一遍稳定序列（不触发 early_warning）：不应因为 intraday_move 已有记录而误判
+    prices = _prices(_STABLE_VALS)
+    dates = [str(d)[:10] for d in prices["date"]]
+    r = run_patrol(led, resolve, lambda a: prices, dates, dates[-1])
+    warns = [a for a in r["new_alerts"] if a["kind"] == "early_warning"]
+    assert warns == []  # 首次出现且 clear 不落库，不会被 intraday_move 的历史记录误触发
+
+
 # ---------- 8b) --llm 输出未实现 JSON ----------
 
 def test_cli_llm_flag_echoes_not_implemented(monkeypatch, tmp_path):
@@ -258,4 +276,4 @@ def test_cli_intraday_flag_uses_intraday_patrol(monkeypatch, tmp_path):
     assert res.exit_code == 0, res.output
     out = json.loads(res.output)
     assert len(out["new_alerts"]) == 1
-    assert out["new_alerts"][0]["kind"] == "early_warning"
+    assert out["new_alerts"][0]["kind"] == "intraday_move"

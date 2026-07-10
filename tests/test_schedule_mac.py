@@ -21,6 +21,11 @@ def test_install_writes_two_plists_by_default(tmp_path, monkeypatch):
     assert any("load" in s for s in flat) and any("unload" in s for s in flat)
     text = (tmp_path / "agents" / "com.quantfox.patrol.plist").read_text()
     assert "<integer>21</integer>" in text and "patrol" in text
+    # launchd 走登录 shell 拿用户 PATH（playwright/chromium 等不在 launchd 默认 PATH 里）
+    assert "/bin/bash" in text and "-lc" in text
+
+    weekly_text = (tmp_path / "agents" / "com.quantfox.weekly.plist").read_text()
+    assert "/bin/bash" in weekly_text and "-lc" in weekly_text and "gold-report" in weekly_text
 
 
 def test_install_intraday_adds_third(tmp_path):

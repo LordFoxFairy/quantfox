@@ -106,11 +106,15 @@ def _mini_entry(code, name, prices):
 # ---------- assemble ----------
 
 def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_dates_list, top=10,
-             events_fn=next_week_events) -> dict:
-    """五榜 + 净值取数 + 健康 + 扇形/迷你图 + 榜单存档 + 上期回看 + 事件日历。
+             events_fn=next_week_events, holdings_fn=None) -> dict:
+    """五榜 + 净值取数 + 健康 + 扇形/迷你图 + 榜单存档 + 上期回看 + 事件日历 + 我的持仓小节。
 
-    全依赖注入（universes/prices_fn/metrics_fn/screen_fn/led/events_fn），本函数自身不触网；
-    events_fn 默认接生产实现（next_week_events），测试注入 fake 即零网络。
+    全依赖注入（universes/prices_fn/metrics_fn/screen_fn/led/events_fn/holdings_fn），
+    本函数自身不触网；events_fn 默认接生产实现（next_week_events），测试注入 fake 即零网络。
+    holdings_fn 不传（默认 None）→ payload 不含 "holdings" 键，周报省略我的持仓小节；
+    传入则调用取 [{"code","name","pnl_pct","last_reconcile_verdict","cone_p50_5d"}, ...]。
+    同日重跑幂等：today 已存过榜单存档（led.issues_for(today) 非空）则跳过再次存档，
+    并在 meta.issues_already_archived 标记，避免"上期回看"的上期被自己重复污染。
     """
     stock_uni = universes.get("股票型")
     screen_rows = screen_fn(stock_uni) if stock_uni is not None and len(stock_uni) else []
@@ -130,6 +134,7 @@ def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_date
     health = summarize_health(health_items)
 
     charts, summary = {}, {}
+    already_archived = bool(led.issues_for(today))
     for board in _BOARD_ORDER:
         rows = boards.get(board, [])
         fan, mini = [], []
@@ -147,11 +152,13 @@ def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_date
                 if e:
                     mini.append(e)
         charts[board] = {"fan": fan, "mini": mini}
-        summary[board] = {"count": len(rows), "top1": rows[0].get("name") if rows else None}
-        for rank, r in enumerate(rows, 1):
-            prices = prices_by_code.get(r["code"])
-            nav = float(prices["value"].iloc[-1]) if prices is not None and len(prices) else None
-            led.add_report_issue(today, board, rank, r["code"], r.get("name"), nav)
+        summary[board] = {"count": len(rows), "top1": rows[0].get("name") if rows else None,
+                          "top1_reason": _top1_reason(board, rows[0]) if rows else None}
+        if not already_archived:  # 同日重跑不许重复存档（否则上期回看的"上期"会被自己污染）
+            for rank, r in enumerate(rows, 1):
+                prices = prices_by_code.get(r["code"])
+                nav = float(prices["value"].iloc[-1]) if prices is not None and len(prices) else None
+                led.add_report_issue(today, board, rank, r["code"], r.get("name"), nav)
 
     events = events_fn()
     if events is None:
@@ -159,12 +166,17 @@ def assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, trade_date
 
     review = _build_review(led, today, prices_by_code, prices_fn)
 
-    return {
+    payload = {
         "boards": boards, "health": health, "summary": summary, "review": review,
         "charts": charts, "events": events,
         "meta": {"today": today, "top": top, "market_valuation": None,
                  "generated_at": _dt.datetime.now(_dt.timezone.utc).isoformat()},
     }
+    if already_archived:
+        payload["meta"]["issues_already_archived"] = True
+    if holdings_fn is not None:
+        payload["holdings"] = holdings_fn()
+    return payload
 
 
 def _build_review(led, today, prices_by_code, prices_fn):
@@ -244,12 +256,36 @@ def _board_section_html(board, rows, charts_for_board):
     )
 
 
+def _top1_reason(board, row):
+    """榜首一句话理由，None-safe（缺字段就不给这条理由，不编造）。"""
+    row = row or {}
+    if board == "potential":
+        score = row.get("score")
+        return None if score is None else f"深筛分 {score}"
+    if board == "high_return":
+        r_1y = row.get("r_1y")
+        return None if r_1y is None else f"1年 {r_1y}%（裸收益，风险自负）"
+    if board == "steady":
+        calmar = row.get("calmar")
+        return None if calmar is None else f"卡玛 {calmar}"
+    if board == "pullback":
+        dist = row.get("dist_from_52w_high")
+        return None if dist is None else f"距高点 -{dist:.0%}×质量"
+    if board == "defensive":
+        ann_vol = row.get("ann_vol")
+        return None if ann_vol is None else f"年化波动 {ann_vol}"
+    return None
+
+
 def _summary_html(summary):
     parts = []
     for board in _BOARD_ORDER:
         s = summary.get(board) or {}
         top1 = s.get("top1") or "—"
-        parts.append(f"{_BOARD_LABELS[board]} {s.get('count', 0)} 只（榜首：{_html.escape(str(top1))}）")
+        reason = s.get("top1_reason")
+        reason_part = f"，{reason}" if reason else ""
+        parts.append(f"{_BOARD_LABELS[board]} {s.get('count', 0)} 只（榜首：{_html.escape(str(top1))}"
+                     f"{_html.escape(reason_part)}）")
     return "金矿摘要：" + " · ".join(parts)
 
 
@@ -295,18 +331,38 @@ def _review_html(review):
     )
 
 
+def _cone_p50_html(cone_p50_5d):
+    """5日中位路径：五个小数逗号串（百分数）；None 或缺失 → 样本不足。"""
+    if not cone_p50_5d:
+        return "样本不足"
+    return "、".join(f"{v * 100:+.1f}%" if v is not None else "—" for v in cone_p50_5d)
+
+
+def _holdings_row_html(h):
+    pnl_pct = h.get("pnl_pct")
+    pnl_cls = "" if pnl_pct is None else ("pos" if pnl_pct >= 0 else "neg")
+    verdict = h.get("last_reconcile_verdict") or "—"
+    return (
+        f'<tr><td class="l">{_html.escape(str(h.get("code", "")))}</td>'
+        f'<td class="l">{_html.escape(str(h.get("name", "") or ""))}</td>'
+        f'<td class="{pnl_cls}">{_pct(pnl_pct, 2)}</td>'
+        f'<td>{_html.escape(str(verdict))}</td>'
+        f'<td>{_html.escape(_cone_p50_html(h.get("cone_p50_5d")))}</td></tr>'
+    )
+
+
 def _holdings_html(payload):
-    """Task 7 才产出 holdings；本任务 payload 通常不含该键——直接省略整节。"""
+    """我的持仓小节：holdings_fn 未注入时 payload 不含该键——直接省略整节。"""
     holdings = payload.get("holdings")
     if not holdings:
         return ""
-    rows = "".join(
-        f'<tr><td class="l">{_html.escape(str(h.get("code", "")))}</td>'
-        f'<td class="l">{_html.escape(str(h.get("name", "") or ""))}</td>'
-        f'<td>{_num(h.get("pnl_pct"), 2)}</td></tr>' for h in holdings)
-    return (f'<section class="holdings"><h2>我的持仓</h2>'
-            f'<table><thead><tr><th class="l">代码</th><th class="l">名称</th><th>浮盈亏</th></tr></thead>'
-            f'<tbody>{rows}</tbody></table></section>')
+    rows = "".join(_holdings_row_html(h) for h in holdings)
+    return (
+        f'<section class="holdings"><h2>我的持仓</h2>'
+        f'<table><thead><tr><th class="l">代码</th><th class="l">名称</th><th>浮盈亏%</th>'
+        f'<th>最近对账</th><th>5日中位路径</th></tr></thead>'
+        f'<tbody>{rows}</tbody></table></section>'
+    )
 
 
 def build_gold_html(payload: dict) -> str:

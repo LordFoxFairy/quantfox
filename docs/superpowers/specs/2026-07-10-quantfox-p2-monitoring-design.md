@@ -106,7 +106,7 @@ report_issues(id INTEGER PK, issue_date TEXT, board TEXT, rank INTEGER,
 6. 汇总：有新告警 → 发邮件（纯文本，标题 `[quantfox巡检] MM-DD N条新信号`，正文含 DataHealth 行 + 各告警 + 当日预期收益表）；无新告警 → 沉默（不发"报平安"邮件；周报里自带持仓小节兜底可见）。
 7. 周五巡检额外：对每只持仓跑 `simulate_paths(5, conditional)` 波动锥，中位显著转负（p50 < −1%）→ 计入摘要（不单独告警 kind，进邮件正文）。
 
-**盘中巡检（`--intraday`，可选装，14:30）**：复用 `intraday` 命令的官方盘中估值/黄金实时价；单日估算涨跌超 ±2% 或黄金现货超 ±1.5% → 发一封简短邮件（同样走 alerts 去重：kind 复用 `early_warning`，state 带日期避免同日重复）。盘中数据仅提示，不落 reconciliations。
+**盘中巡检（`--intraday`，可选装，14:30）**：复用 `intraday` 命令的官方盘中估值/黄金实时价；单日估算涨跌超 ±2% 或黄金现货超 ±1.5% → 发一封简短邮件（同样走 alerts 去重：kind=intraday_move（独立状态空间，避免污染收盘 early_warning 去重），state 带日期避免同日重复）。盘中数据仅提示，不落 reconciliations。
 
 **`--llm`**：本期直接输出 `{"error": "llm 深分析未实现，预留参数位（P3）"}`。
 

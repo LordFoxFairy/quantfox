@@ -2,6 +2,7 @@
 周报（周五21:30）/ 收盘巡检（工作日21:35）/ 盘中巡检（可选，工作日14:30）。
 云端 /schedule 摸不到本地 ~/.quantfox，故只支持本机调度；睡眠错过由 launchd 唤醒后补跑。"""
 import platform
+import shlex
 import shutil
 import subprocess
 from pathlib import Path
@@ -70,7 +71,11 @@ def install(intraday=False, exe=None, agents_dir=None, launchctl=None, log_dir=N
     written = []
     for label, job in _jobs(intraday).items():
         p = agents_dir / f"{label}.plist"
-        p.write_text(plist_xml(label, [exe, *job["args"]], job["calendar"],
+        # launchd 默认不走登录 shell、PATH 极简（找不到 playwright/chromium）；
+        # 用 /bin/bash -lc 包一层跑登录 shell，拿到用户完整 PATH。
+        cmd = " ".join(shlex.quote(a) for a in [exe, *job["args"]])
+        program_args = ["/bin/bash", "-lc", cmd]
+        p.write_text(plist_xml(label, program_args, job["calendar"],
                                str(logs / f"{label}.log")), encoding="utf-8")
         launchctl(["unload", str(p)])
         launchctl(["load", "-w", str(p)])

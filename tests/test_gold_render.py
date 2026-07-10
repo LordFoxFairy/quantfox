@@ -127,3 +127,51 @@ def test_assemble_and_render(tmp_path):
     # 事件不可用 → 整节省略（不渲染"下周事件"），仅 health line 注明
     assert "下周事件" not in html
     assert "事件日历不可用" in html
+    # 金矿摘要：榜首带一句话理由（Fix 5，potential 榜首用深筛分）
+    assert "深筛分" in html
+
+
+def test_holdings_section_wired_when_holdings_fn_given(tmp_path):
+    """Fix 1：assemble 传 holdings_fn → payload["holdings"] 填充，HTML 含我的持仓小节 +
+    对账 verdict + 5日中位路径；不传则整节省略（当前行为不变）。"""
+    led = _ledger(tmp_path)
+    fake_holdings = [
+        {"code": "100000", "name": "示例基金100000", "pnl_pct": 0.0512,
+         "last_reconcile_verdict": "ok", "cone_p50_5d": [0.001, 0.002, -0.001, 0.0, 0.003]},
+        {"code": "100001", "name": "示例基金100001（取价失败）", "pnl_pct": None,
+         "last_reconcile_verdict": None, "cone_p50_5d": None},
+    ]
+    payload = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
+                       TODAY, TRADE_DATES, top=5, events_fn=lambda: None,
+                       holdings_fn=lambda: fake_holdings)
+    assert payload["holdings"] == fake_holdings
+
+    html = build_gold_html(payload)
+    assert "我的持仓" in html
+    assert "ok" in html
+    assert "5.12" in html  # pnl_pct 渲染成百分比
+    assert "样本不足" in html  # cone_p50_5d=None 的行
+    # p50 序列以百分数逗号（顿号）串渲染
+    assert "+0.1%" in html or "0.1%" in html
+
+    # 不传 holdings_fn（默认 None）→ payload 不含该键，整节省略（当前行为不变）
+    payload_no_holdings = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
+                                   TODAY2, TRADE_DATES, top=5, events_fn=lambda: None)
+    assert "holdings" not in payload_no_holdings
+    html_no_holdings = build_gold_html(payload_no_holdings)
+    assert "我的持仓" not in html_no_holdings
+
+
+def test_same_day_rerun_does_not_duplicate_report_issues(tmp_path):
+    """Fix 4：同一 today 重跑 assemble 两次，report_issues 存档不重复（幂等）。"""
+    led = _ledger(tmp_path)
+    assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
+             TODAY, TRADE_DATES, top=5, events_fn=lambda: None)
+    n1 = len(led.issues_for(TODAY))
+    assert n1 > 0
+
+    payload2 = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
+                        TODAY, TRADE_DATES, top=5, events_fn=lambda: None)
+    n2 = len(led.issues_for(TODAY))
+    assert n2 == n1  # 未重复存档
+    assert payload2["meta"]["issues_already_archived"] is True

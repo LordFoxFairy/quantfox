@@ -305,6 +305,36 @@ def gold_report_cmd(
     def prices_fn(code):
         return load_prices(resolve(code))
 
+    led = _ledger()
+
+    def holdings_fn():
+        from .forecast import simulate_paths
+        from .percentile import price_percentile
+
+        rows = []
+        for h in led.list_holdings():
+            if h["status"] != "holding":
+                continue
+            symbol = h["symbol"]
+            try:
+                prices = prices_fn(symbol)
+                latest_nav = float(prices["value"].iloc[-1])
+            except Exception:  # noqa - 单只取价失败不阻断整节
+                rows.append({"code": symbol, "name": f"{symbol}（取价失败）", "pnl_pct": None,
+                            "last_reconcile_verdict": None, "cone_p50_5d": None})
+                continue
+            pos = led.position(symbol, latest_nav=latest_nav)
+            pnl_pct = pos.get("pnl_pct") if pos else None
+            rec = led.latest_reconciliation(symbol)
+            verdict = rec.get("verdict") if rec else None
+            price_pct = price_percentile(prices, 3).get("price_pct")
+            cond = price_pct if (price_pct or 0) > 0.85 else None
+            cone = simulate_paths(prices, 5, conditional_pct=cond)
+            rows.append({"code": symbol, "name": symbol, "pnl_pct": pnl_pct,
+                        "last_reconcile_verdict": verdict,
+                        "cone_p50_5d": cone.get("p50") if cone else None})
+        return rows
+
     today = _dt.date.today().isoformat()
     try:
         dates = trade_dates()
@@ -312,7 +342,8 @@ def gold_report_cmd(
         typer.echo(f"# 交易日历不可用，健康检查将保守判定: {e}", err=True)
         dates = [today]
 
-    payload = assemble(universes, prices_fn, metrics_fn, screen_fn, _ledger(), today, dates, top=top)
+    payload = assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, dates, top=top,
+                       holdings_fn=holdings_fn)
     try:
         payload["meta"]["market_valuation"] = run_market_valuation()
     except Exception:  # noqa - 大盘估值仅头部展示，取数失败不阻断周报
