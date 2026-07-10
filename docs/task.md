@@ -27,12 +27,18 @@
 - [x] **专家二轮 code review 修复**（2026-07-09）：回测收益虚高、结算 start=0 污染、信心 0-1/0-100 口径、回撤低估补日度、净值 staleness、schema 版本、证据快照冻结。
 - [x] **回测背书门槛 + 中长期导向**（2026-07-09）：框架 v9 出手前须 backtest 背书；v10 定位"中长期(最短1月)、目标高概率正收益不亏"，默认周期 20/60/120/250。
 - [x] **持仓监控 fund-watch**（2026-07-09）：opt-in 清单（`quantfox watch add/list/remove/check`）+ 触发式监控（浮亏/回撤/跌破MA60=需关注，估值高位=软提示），中长期少动、平时沉默；定时由用户自行 /schedule，不擅自建。共 7 skill。
+- [x] **P1 一致性+全局统一+mandate+对账留痕**（2026-07-10，spec/plan 见 docs/superpowers/）：
+  config.json 统一配置（email.json 自动迁移、0700/0600 权限）；mandate-lite（`quantfox mandate set/show`，7 skill 第0步）；
+  框架 v14 诚实铁律唯一出处 + 7 skill 同步 + grep 矩阵测试；交易日历 15:00 cutoff 自动确认日、pending lot、
+  `watch confirm/expect/reconcile` + append-only reconciliations 留痕；output/ 清理入 ~/.quantfox，遗留稿归档 docs/reference。
 
 ### 后续（未开始）
+- [ ] **yield-seeker SOP 落地**（2026-07-10 晚会话沉淀）：fund-screener 加"诉求校准/风偏探测"前置章节 + 引擎 C1(metrics-batch)/C2(假稳flags)/C3(名实核对)/C4(forecast小样本警示)/C5(确认日helper)——设计见 `docs/superpowers/specs/2026-07-10-yield-seeker-sop-design.md`。
 - [ ] review 口径细分（买入胜率 vs 回避胜率 vs 策略净值胜率）——回测已按此口径，live review 可跟进。
-- [ ] price_ref_date 对齐场外基金 T+1。
+- [x] price_ref_date 对齐场外基金 T+1 —— P1 已建 calendar_cn + watch buy 自动确认日（2026-07-10）。
 - [ ] **P2**：headless `--llm`（无人值守分析）。
 - [ ] **P3**：正式对外发布。
+- [ ] 参考池（P3/P4 设计时按需摘取，不整体引入）：Qlib（ML 选股工作流）/ Backtrader（回测模式）/ easy-fund 类（指标查漏：詹森/信息比率）/ FinNLP·FinGPT（数据清洗流程）。CTA 期货+杠杆与保本优先冲突，未立项。
 
 - [x] **发布结构**（2026-07-08）：改造成标准 Claude Code plugin marketplace——根目录 `.claude-plugin/marketplace.json`，skill 位于顶层 `skills/fund-analyze/`。
 - [x] **专业化重构**（2026-07-08）：

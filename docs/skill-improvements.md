@@ -3,6 +3,7 @@
 > 来源：2026-07-10 实战会话（记账博时黄金 002611 + 全市场深筛选基）。
 > 每条：场景 / 问题 / 建议 / 优先级 / 影响 skill。
 > 配套：操作教训见 `docs/lesson.md`；深筛+舆情完整设计见 `docs/superpowers/specs/2026-07-10-deep-screening-sentiment-design.md`。
+> 新增（2026-07-10 晚会话）："收益诉求"端到端 SOP + C1-C6 工程项，见 `docs/superpowers/specs/2026-07-10-yield-seeker-sop-design.md`（预期校准/风偏探测/假稳过滤/名实核对/触发式进场卡）。
 
 ## 0. 先明确"已建成、别重造"（避免重复劳动）
 
