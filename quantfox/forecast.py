@@ -7,6 +7,7 @@ p10–p90 / 历史极值。并给**估值条件化**版本——只用"当时估
 铁律：① 看中位别看均值（均值被牛市尾部拉高）；② 这是历史统计推断、样本偏牛市、当前高估值应向下打折；
 ③ 绝不输出单一点数字冒充"预测"；④ 非承诺、决策自负。
 """
+import numpy as np
 import pandas as pd
 
 from .percentile import price_percentile
@@ -53,3 +54,47 @@ def forecast(prices: pd.DataFrame, horizons=(20, 60, 120, 250)) -> dict:
                  "`from_similar_valuation` 是'从当前估值分位买入'的历史分布，更贴合现在；样本偏牛市，"
                  "当前分位高则实际应更保守。决策与风险自负。"),
     }
+
+
+def simulate_paths(prices: pd.DataFrame, horizon_days: int, n_paths: int = 1000,
+                   block: int = 20, conditional_pct=None, seed: int = 20260710):
+    """块状自助抽样模拟未来逐日路径（保留波动聚集），供扇形图与短期波动锥共用。
+    返回逐日百分位；估值条件化样本不足自动降级并如实标注；历史太短诚实弃权。"""
+    s = prices["value"].astype(float).reset_index(drop=True)
+    if len(s) < 120:
+        return None
+    rets = (s / s.shift(1) - 1.0).dropna().reset_index(drop=True).to_numpy()
+    if len(rets) <= block:
+        return None
+    degraded = False
+    starts = None
+    if conditional_pct is not None:
+        win = 252 * 3
+        trail = s.rolling(win, min_periods=252).apply(lambda x: (x <= x[-1]).mean(), raw=True)
+        band_idx = trail[(trail >= conditional_pct - 0.15) & (trail <= conditional_pct + 0.15)].index
+        cand = [i - 1 for i in band_idx if 1 <= i <= len(rets) - block]
+        if len(cand) >= 250:
+            starts = cand
+        else:
+            degraded = True
+    if starts is None:
+        starts = list(range(0, len(rets) - block))
+    rng = np.random.default_rng(seed)
+    n_blocks = horizon_days // block + 1
+    paths = np.empty((n_paths, horizon_days))
+    for p in range(n_paths):
+        idx = rng.choice(starts, size=n_blocks)
+        chunk = np.concatenate([rets[i:i + block] for i in idx])[:horizon_days]
+        paths[p] = np.cumprod(1.0 + chunk) - 1.0
+    q = {k: np.percentile(paths, v, axis=0) for k, v in
+         (("p10", 10), ("p25", 25), ("p50", 50), ("p75", 75), ("p90", 90))}
+    out = {"days": list(range(1, horizon_days + 1)),
+           **{k: [round(float(x), 4) for x in arr] for k, arr in q.items()},
+           "prob_positive_terminal": round(float((paths[:, -1] > 0).mean()), 4),
+           "n_paths": n_paths,
+           "conditional": conditional_pct is not None and not degraded,
+           "degraded_to_unconditional": degraded,
+           "note": "历史统计推演，非预测承诺"}
+    if len(s) < 500:
+        out["warning"] = "样本不足，仅供参考"
+    return out

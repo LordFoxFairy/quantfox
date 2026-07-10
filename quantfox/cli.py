@@ -135,12 +135,27 @@ def profile(query: str):
 
 
 @app.command()
-def forecast(query: str):
-    """前瞻收益分布（非点预测）：持有1/3/6/12月的正收益概率/中位/p10-p90 + 估值条件化。"""
+def forecast(query: str,
+             short: int = typer.Option(None, "--short", help="短期波动锥：未来 N 个交易日逐日区间（N≤10）")):
+    """前瞻收益分布（非点预测）；--short N 给逐日波动锥（区间不是方向）。"""
     from .forecast import forecast as run_fc
+    from .forecast import simulate_paths
+    from .percentile import price_percentile
 
     asset = resolve(query)
-    typer.echo(json.dumps(run_fc(_prices_for(asset)), ensure_ascii=False, indent=2))
+    prices = _prices_for(asset)
+    if short is not None:
+        if not 1 <= short <= 10:
+            raise typer.BadParameter("--short 取 1..10 个交易日")
+        pct = price_percentile(prices, 3).get("price_pct")
+        cond = pct if pct is not None and pct > 0.85 else None
+        cone = simulate_paths(prices, short, conditional_pct=cond)
+        typer.echo(json.dumps({"symbol": asset.symbol, "current_valuation_pct": pct,
+                               "cone": cone,
+                               "note": "逐日区间（p10-p90），不是方向预测；历史统计推演，非预测承诺"},
+                              ensure_ascii=False, indent=2))
+        return
+    typer.echo(json.dumps(run_fc(prices), ensure_ascii=False, indent=2))
 
 
 @app.command("market-valuation")
