@@ -158,6 +158,21 @@ def forecast(query: str,
     typer.echo(json.dumps(run_fc(prices), ensure_ascii=False, indent=2))
 
 
+@app.command("next-confirm")
+def next_confirm(at: str = typer.Option(None, "--at", help='下单时刻 "YYYY-MM-DD HH:MM"，缺省=现在')):
+    """现在（或指定时刻）下单，按 15:00 cutoff + 交易日历推场外基金净值确认日。"""
+    from .calendar_cn import nav_date_for_order, trade_dates
+
+    order_at = _dt.datetime.strptime(at, "%Y-%m-%d %H:%M") if at else _dt.datetime.now()
+    try:
+        nav_date = nav_date_for_order(order_at, trade_dates())
+    except RuntimeError as e:
+        raise typer.BadParameter(str(e)) from e
+    typer.echo(json.dumps({"order_at": order_at.strftime("%Y-%m-%d %H:%M"), "nav_date": nav_date,
+                           "note": "15:00 前按当日净值确认，之后顺延下一交易日（场外基金）"},
+                          ensure_ascii=False))
+
+
 @app.command("market-valuation")
 def market_valuation():
     """全 A 股整体估值分位（宏观贵不贵锚，供股票/指数基金参考）。"""
