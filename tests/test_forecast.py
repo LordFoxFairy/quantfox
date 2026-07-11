@@ -34,3 +34,24 @@ def test_structure_and_valuation_conditional():
 def test_insufficient_sample_flagged():
     r = forecast(_df([1, 2, 3, 4, 5] * 10), horizons=(250,))  # 250 期前瞻几乎无样本
     assert "note" in r["horizons"]["250"]["all"] or r["horizons"]["250"]["all"]["n"] < 60
+
+
+def test_small_sample_warning_fields():
+    import numpy as np
+
+    # 小样本（n=380）：触发 age_warning，部分分布有 warning
+    n = 380
+    rng = np.random.default_rng(3)
+    vals = 2.0 * np.cumprod(1 + rng.normal(0.0003, 0.01, n))
+    df = _df(vals)
+    out = forecast(df)
+    assert out["age_warning"].startswith("成立不足3年")
+    assert out["horizons"]["250"]["all"].get("warning") == "样本不足，谨慎参考"   # n=130
+    assert "warning" not in out["horizons"]["20"]["all"]                        # n=360
+
+    # 长历史（n=1000）：无 age_warning
+    n2 = 1000
+    vals2 = 2.0 * np.cumprod(1 + rng.normal(0.0003, 0.01, n2))
+    df2 = _df(vals2)
+    out2 = forecast(df2)
+    assert "age_warning" not in out2

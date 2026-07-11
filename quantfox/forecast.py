@@ -39,14 +39,21 @@ def forecast(prices: pd.DataFrame, horizons=(20, 60, 120, 250)) -> dict:
         fwd_all = s.shift(-h) / s - 1.0
         fa = fwd_all.dropna()
         d = {"all": _dist(fa)} if len(fa) >= 60 else {"all": {"n": int(len(fa)), "note": "样本不足，别当真"}}
+        # 为 all 分布添加 warning（如果 n < 200 且不是 note dict）
+        if "note" not in d["all"] and d["all"].get("n", 0) < 200:
+            d["all"]["warning"] = "样本不足，谨慎参考"
         if cur_pct is not None:
             band = (trail_pct >= max(0.0, cur_pct - 0.1)) & (trail_pct <= min(1.0, cur_pct + 0.1))
             fc = fwd_all[band & fwd_all.notna()].dropna()
             if len(fc) >= 30:
-                d["from_similar_valuation"] = _dist(fc)
+                dist_fc = _dist(fc)
+                # 为 from_similar_valuation 分布添加 warning（如果 n < 200）
+                if dist_fc.get("n", 0) < 200:
+                    dist_fc["warning"] = "样本不足，谨慎参考"
+                d["from_similar_valuation"] = dist_fc
         out[str(h)] = d
 
-    return {
+    result = {
         "current_valuation_pct": round(cur_pct, 4) if cur_pct is not None else None,
         "horizons_note": "键为交易日：20≈1月 / 60≈3月 / 120≈6月 / 250≈1年",
         "horizons": out,
@@ -54,6 +61,10 @@ def forecast(prices: pd.DataFrame, horizons=(20, 60, 120, 250)) -> dict:
                  "`from_similar_valuation` 是'从当前估值分位买入'的历史分布，更贴合现在；样本偏牛市，"
                  "当前分位高则实际应更保守。决策与风险自负。"),
     }
+    # 为顶层添加 age_warning（如果成立不足3年）
+    if n < 756:
+        result["age_warning"] = "成立不足3年，全部前瞻打折看待"
+    return result
 
 
 def simulate_paths(prices: pd.DataFrame, horizon_days: int, n_paths: int = 1000,
