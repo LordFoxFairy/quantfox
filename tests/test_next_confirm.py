@@ -28,6 +28,13 @@ def test_after_cutoff_and_weekend(monkeypatch, tmp_path):
     assert json.loads(runner.invoke(cli.app, ["next-confirm", "--at", "2026-07-11 09:00"]).output)["nav_date"] == "2026-07-13"
 
 
+def test_malformed_at(monkeypatch, tmp_path):
+    _setup(monkeypatch, tmp_path)
+    res = runner.invoke(cli.app, ["next-confirm", "--at", "2026-07-10"])
+    assert res.exit_code != 0
+    assert "YYYY-MM-DD HH:MM" in res.output
+
+
 def test_calendar_unavailable(monkeypatch, tmp_path):
     monkeypatch.setenv("QUANTFOX_HOME", str(tmp_path))
 

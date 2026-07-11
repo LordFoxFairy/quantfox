@@ -163,7 +163,13 @@ def next_confirm(at: str = typer.Option(None, "--at", help='下单时刻 "YYYY-M
     """现在（或指定时刻）下单，按 15:00 cutoff + 交易日历推场外基金净值确认日。"""
     from .calendar_cn import nav_date_for_order, trade_dates
 
-    order_at = _dt.datetime.strptime(at, "%Y-%m-%d %H:%M") if at else _dt.datetime.now()
+    if at:
+        try:
+            order_at = _dt.datetime.strptime(at, "%Y-%m-%d %H:%M")
+        except ValueError as e:
+            raise typer.BadParameter('--at 格式应为 "YYYY-MM-DD HH:MM"，如 "2026-07-10 14:30"') from e
+    else:
+        order_at = _dt.datetime.now()
     try:
         nav_date = nav_date_for_order(order_at, trade_dates())
     except RuntimeError as e:
