@@ -42,11 +42,23 @@ def test_marketplace_lists_all_skills():
 
 def test_honesty_matrix_all_skills():
     # 7 skill × 铁律关键词全覆盖（grep 矩阵验收，spec §3）
-    keywords = ["中位", "0.85", "幸存者偏差", "from_similar_valuation", "QUANTFOX_HOME", "mandate", "v15"]
+    keywords = ["中位", "0.85", "幸存者偏差", "from_similar_valuation", "QUANTFOX_HOME", "mandate", "v16"]
     for name in EXPECTED:
         text = (SKILLS / name / "SKILL.md").read_text(encoding="utf-8")
         for kw in keywords:
             assert kw in text, f"{name}/SKILL.md 缺铁律关键词: {kw}"
+
+
+def test_fund_screener_expectation_calibration():
+    # 第 0 步诉求校准
+    text = (SKILLS / "fund-screener" / "SKILL.md").read_text(encoding="utf-8")
+    assert "诉求校准" in text, "fund-screener/SKILL.md 缺第 0 步诉求校准"
+
+
+def test_fund_analyze_theme_guess():
+    # 名实核对与 theme_guess 消费
+    text = (SKILLS / "fund-analyze" / "SKILL.md").read_text(encoding="utf-8")
+    assert "theme_guess" in text, "fund-analyze/SKILL.md 缺 theme_guess 说明"
 
 
 def test_forecast_step_in_analysis_skills():

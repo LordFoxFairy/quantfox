@@ -12,7 +12,7 @@ description: >-
 
 一次跑完：**取数 → 四维评分卡 → 深度解读 → 可视化报告 → 存档**。你（CC agent）是分析师，`quantfox` 引擎是你的数据与工具后端。全程中文、透明说依据、结论先行。
 
-## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v15，以框架为准）
+## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v16，以框架为准）
 - **看中位不看均值**；估值分位 **>0.85 过闸门**（剔除/降级，相对分≠能买）；涉及排名/回测必提**幸存者偏差**；高位前瞻以 `from_similar_valuation` 为准，样本不足明说别当真。
 - **第 0 步先 `quantfox mandate show`**：有档案 → 金额/仓位建议受单标的与主题上限约束，结论对齐用户目标与期限；无档案 → 一句话提示可 `quantfox mandate set` 建立，不阻断。
 - **产物落 `QUANTFOX_HOME`**（默认 `~/.quantfox/`），绝不写进代码仓库；对话里的预期收益/对账结论用 `quantfox watch expect` / `watch reconcile` 落库，不许只留在对话里。
@@ -27,7 +27,7 @@ description: >-
 1. **定标的**：提取基金 6 位代码或识别"黄金"；含糊先问清。
 2. **看战绩校准**：`quantfox review <标的>`，历史准就自信、不准就收敛。
 3. **取证据卡**：`quantfox evidence <标的> --format json`（字段解读见 `references/evidence-card.md`，首次必读）。
-4. **专业地读**（不是只看指标）：**持仓**看它押注什么、**估值分位**看贵不贵、**风险绩效**看险不险、**经理/评级/规模费率**看靠不靠谱。股票/指数基金再跑 `quantfox market-valuation` 看**大盘整体估值分位**（偏贵/贵时追高更谨慎、下调信心）。
+4. **专业地读**（不是只看指标）：**持仓**看它押注什么、**估值分位**看贵不贵、**风险绩效**看险不险、**经理/评级/规模费率**看靠不靠谱。股票/指数基金再跑 `quantfox market-valuation` 看**大盘整体估值分位**（偏贵/贵时追高更谨慎、下调信心）。证据卡 name_theme_mismatch=true → 点明名实不符，舆情按 holdings.theme_guess 主题搜。
 5. **前瞻收益分布**（看未来，但诚实地看）：`quantfox forecast <标的>` → 持有 20/60/120/250 日（≈1/3/6/12月）的**正收益概率 / 中位 / p10–p90 / 历史极值**，并带 `from_similar_valuation`（从当前估值分位买入的历史下场）。铁律：① **看中位（最可能），不看均值**——均值被牛市尾部拉高，中位才是典型结局；② 当前估值偏高（分位 >0.85）时**以 `from_similar_valuation` 为准**，它量化了"别在山顶买"（高位买入的短期胜率/中位常大幅劣于无条件）；③ 历史统计推断 ≠ 承诺，样本多偏牛市须向下打折；④ 样本不足（无条件 <60 / 条件 <30）时明说"别当真"。把前瞻赔率写进解读，并据此校准信心分。
 6. **舆情自己搜自己判**：WebSearch/WebFetch 搜该标的（或其重仓行业、或黄金对应的实际利率/美元/央行购金）最新新闻政策，鉴别真伪时效与利好利空。
 7. **打四维评分卡 + 结论**：严格按 `quantfox/prompts/analysis_framework.md`——趋势动量/稳定性/估值/基本面质量各 0-100，综合出 Verdict + 信心分 + **离场信号(Kill criteria)**。data_quality 缺失要下调信心并说明。

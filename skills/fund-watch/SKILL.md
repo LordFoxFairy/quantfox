@@ -11,7 +11,7 @@ description: >-
 
 **理念**：普通用户不想被噪音轰炸。① 只看用户**自己加进来**的；② 平时**沉默**，只有**真触发**才提醒；③ 中长期，**极少建议动作**，不 churn。
 
-## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v15，以框架为准）
+## 诚实铁律 + 档案 + 留痕（出处：quantfox/prompts/analysis_framework.md v16，以框架为准）
 - **看中位不看均值**；估值分位 **>0.85 过闸门**（剔除/降级，相对分≠能买）；涉及排名/回测必提**幸存者偏差**；高位前瞻以 `from_similar_valuation` 为准，样本不足明说别当真。
 - **第 0 步先 `quantfox mandate show`**：有档案 → 金额/仓位建议受单标的与主题上限约束，结论对齐用户目标与期限；无档案 → 一句话提示可 `quantfox mandate set` 建立，不阻断。
 - **产物落 `QUANTFOX_HOME`**（默认 `~/.quantfox/`），绝不写进代码仓库；对话里的预期收益/对账结论用 `quantfox watch expect` / `watch reconcile` 落库，不许只留在对话里。
