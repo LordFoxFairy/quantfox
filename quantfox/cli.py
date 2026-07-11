@@ -187,6 +187,19 @@ def market_valuation():
     typer.echo(json.dumps(mv(), ensure_ascii=False, indent=2))
 
 
+@app.command()
+def market(brief: bool = typer.Option(False, "--brief", help="只输出一句话 regime_line")):
+    """A股市场层：五大指数估值分位+动量、市场宽度、行业轮动 top/bottom，合成一句话市场判断。
+    任一子块取数失败/数据不足即弃权并如实记入 health，不拿假数据填充。"""
+    from .market import build_market_view, default_fetchers
+
+    view = build_market_view(default_fetchers())
+    if brief:
+        typer.echo(json.dumps({"regime_line": view["regime_line"]}, ensure_ascii=False))
+        return
+    typer.echo(json.dumps(view, ensure_ascii=False, indent=2))
+
+
 def _intraday_estimate(asset):
     """取一只标的的盘中估算（黄金用实时价；基金用官方盘中估算，降级到自算前十大重仓）。
     被 `intraday` 命令与 `patrol --intraday` 共用。"""
