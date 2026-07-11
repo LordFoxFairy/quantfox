@@ -10,9 +10,10 @@ from .data.resolve import Asset
 from .indicators import compute_indicators
 from .metrics import compute_metrics
 from .percentile import price_percentile
+from .themes import guess_theme, name_theme_mismatch
 
 
-SCHEMA_VERSION = "2.1"
+SCHEMA_VERSION = "2.2"
 
 TRADING_DAYS_PER_YEAR = 252
 
@@ -71,6 +72,7 @@ class EvidenceCard(BaseModel):
     track_record: Optional[dict] = None
     data_quality: DataQuality = DataQuality()
     flags: list[str] = []  # C2 假稳/风险错配检测：nav_spike_suspect / bond_equity_risk / short_history
+    name_theme_mismatch: bool = False  # C3 名实核对：持仓推断主题与资产名不符
 
     def to_json(self) -> str:
         return json.dumps(self.model_dump(), ensure_ascii=False, indent=2)
@@ -163,10 +165,20 @@ def build_evidence(
     fund_type = (profile.get("basic") or {}).get("type") if profile.get("applicable") else None
     flags = compute_flags(metrics, fund_type, history_years)
 
+    # C3 名实核对：从真实持仓推断主题，与资产名比对
+    theme_guess = None
+    holdings = (profile.get("holdings") or {}) if profile.get("applicable") else {}
+    top = holdings.get("top") or []
+    if top:
+        theme_guess = guess_theme([x.get("name") for x in top])
+        profile = {**profile, "holdings": {**holdings, "theme_guess": theme_guess}}
+    mismatch = name_theme_mismatch(asset.name, theme_guess) if theme_guess else False
+
     return EvidenceCard(
         asset=asset, price=price, returns=returns, metrics=metrics,
         profile=profile, indicators=indicators, percentile=pct,
         track_record=track_record,
         data_quality=DataQuality(price=pq, ohlc=ohlc, profile=pfq, notes=notes),
         flags=flags,
+        name_theme_mismatch=mismatch,
     )

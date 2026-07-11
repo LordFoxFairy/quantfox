@@ -3,8 +3,7 @@
 幸存者偏差与"过去≠未来"由渲染层固定文案承担。"""
 import pandas as pd
 
-_INDUSTRY_WORDS = ["医疗", "医药", "半导体", "新能源", "白酒", "军工", "科技", "消费",
-                   "金融", "地产", "黄金", "芯片", "光伏", "汽车"]
+from .themes import name_theme_mismatch as _name_theme_mismatch
 
 
 def select_pool(universes: dict) -> list:
@@ -30,15 +29,6 @@ def _fund_type_of(code, universes):
         if (df["code"] == code).any():
             return t
     return None
-
-
-def _name_theme_mismatch(name, theme):
-    if not name or not theme:
-        return False
-    for w in _INDUSTRY_WORDS:
-        if w in name and w not in theme:
-            return True
-    return False
 
 
 def _base_row(m, universes):

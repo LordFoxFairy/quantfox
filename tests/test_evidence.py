@@ -37,7 +37,7 @@ def test_build_full_card_v2():
     card = build_evidence(a, prices=prices, profile=_FUND_PROFILE,
                           track_record={"past_signals": 3, "hit_rate": 0.66}, today=_asof(prices))
     assert isinstance(card, EvidenceCard)
-    assert card.schema_version == "2.1"
+    assert card.schema_version == "2.2"
     assert card.data_quality.price == "ok"
     assert card.profile["basic"]["manager"] == "王三"
     assert card.data_quality.profile == "ok"
@@ -147,3 +147,30 @@ def test_flags_can_combine_multiple():
     flags = compute_flags(metrics, fund_type="纯债型", history_years=1.0)
     # 回撤/波动不匹配 + 短历史 同时成立；债基未跌破 -10% 所以 bond_equity_risk 不触发
     assert flags == ["nav_spike_suspect", "short_history"]
+
+
+# --- C3: theme_guess + name_theme_mismatch in evidence card ---
+
+def test_theme_guess_and_mismatch_in_card():
+    from quantfox.data.resolve import Asset
+    from quantfox.evidence import build_evidence
+
+    profile = {"applicable": True, "basic": {"type": "股票型"},
+               "holdings": {"as_of": "2026-06-30", "top10_concentration": 50.0,
+                            "top": [{"name": "北方华创半导体", "pct": 8.0},
+                                    {"name": "中芯国际半导体", "pct": 7.0},
+                                    {"name": "贵州茅台", "pct": 5.0}]}}
+    card = build_evidence(Asset(symbol="000001", type="otc_fund", name="示例医疗健康混合"),
+                          prices=None, profile=profile, track_record=None)
+    assert card.profile["holdings"]["theme_guess"] == "半导体"
+    assert card.name_theme_mismatch is True
+    assert card.schema_version == "2.2"
+
+
+def test_no_mismatch_without_holdings():
+    from quantfox.data.resolve import Asset
+    from quantfox.evidence import build_evidence
+
+    card = build_evidence(Asset(symbol="000001", type="otc_fund", name="示例医疗健康混合"),
+                          prices=None, profile={"applicable": False}, track_record=None)
+    assert card.name_theme_mismatch is False
