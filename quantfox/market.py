@@ -200,6 +200,9 @@ def _default_breadth():
 
 
 def _default_sector_momentum():
+    import contextlib
+    import io
+
     import akshare as ak
 
     try:
@@ -209,21 +212,26 @@ def _default_sector_momentum():
     end = _dt.date.today()
     start = end - _dt.timedelta(days=150)
     out = []
-    for _, row in names_df.iterrows():
-        code, name = row.get("code"), row.get("name")
-        if not name:
-            continue
-        try:
-            hist = ak.stock_board_industry_index_ths(
-                symbol=name, start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"))
-        except Exception:  # noqa - 单个板块限流/失败不阻断其余板块
-            continue
-        close = hist["收盘价"]
-        if len(close) < 22:
-            continue
-        r_1m = float(close.iloc[-1] / close.iloc[-22] - 1)
-        r_3m = float(close.iloc[-1] / close.iloc[-64] - 1) if len(close) >= 64 else None
-        out.append({"code": code, "name": name, "r_1m": r_1m, "r_3m": r_3m})
+    # ak.stock_board_industry_index_ths 每次调用内部起一个 tqdm 进度条（leave=False）；
+    # 全行业板块循环下来能刷屏近百条，且 akshare 的 get_tqdm() 不认 TQDM_DISABLE 环境变量
+    # （实测：tqdm/akshare 源码均未读取该变量）。静默 stderr 是唯一简单可行的办法，
+    # 不影响真正的异常传播（异常走 raise，不走 stderr 打印）。
+    with contextlib.redirect_stderr(io.StringIO()):
+        for _, row in names_df.iterrows():
+            code, name = row.get("code"), row.get("name")
+            if not name:
+                continue
+            try:
+                hist = ak.stock_board_industry_index_ths(
+                    symbol=name, start_date=start.strftime("%Y%m%d"), end_date=end.strftime("%Y%m%d"))
+            except Exception:  # noqa - 单个板块限流/失败不阻断其余板块
+                continue
+            close = hist["收盘价"]
+            if len(close) < 22:
+                continue
+            r_1m = float(close.iloc[-1] / close.iloc[-22] - 1)
+            r_3m = float(close.iloc[-1] / close.iloc[-64] - 1) if len(close) >= 64 else None
+            out.append({"code": code, "name": name, "r_1m": r_1m, "r_3m": r_3m})
     if not out:
         raise RuntimeError("接口不可用：全部行业板块取数失败")
     return out

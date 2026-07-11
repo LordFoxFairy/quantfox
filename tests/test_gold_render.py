@@ -191,6 +191,32 @@ def test_board_names_backfilled_from_universe_when_metrics_lack_name(tmp_path):
     assert "榜首：—" not in html  # 五榜榜首名字全部可见
 
 
+def test_regime_header_three_branch_fallback(tmp_path):
+    """Task 5：头部 regime 双重降级 —— meta.regime_line 存在则渲染之（转义）；
+    缺失但 meta.market_valuation 存在则走现有展示（不变）；两者皆无则显示"regime 不可用"。"""
+    led = _ledger(tmp_path)
+    payload = assemble(UNIVERSES, _synthetic_prices, _metrics_fn, _screen_fn, led,
+                       TODAY, TRADE_DATES, top=5, events_fn=lambda: None)
+
+    # 分支1：regime_line 存在 → 渲染其内容，且做 HTML 转义
+    payload["meta"]["regime_line"] = "整体估值偏贵 · 趋势偏多 · 热点：新能源&AI"
+    html1 = build_gold_html(payload)
+    assert "整体估值偏贵 · 趋势偏多 · 热点：新能源&amp;AI" in html1
+    assert "regime 不可用" not in html1
+
+    # 分支2：regime_line 缺失，market_valuation 存在 → 现有展示不变
+    del payload["meta"]["regime_line"]
+    payload["meta"]["market_valuation"] = {"available": True, "percentile_10y": 0.62, "level": "中性略高"}
+    html2 = build_gold_html(payload)
+    assert "大盘估值：全A近10年 62% 分位（中性略高）" in html2
+    assert "regime 不可用" not in html2
+
+    # 分支3：两者皆无 → "regime 不可用"
+    payload["meta"]["market_valuation"] = None
+    html3 = build_gold_html(payload)
+    assert "regime 不可用" in html3
+
+
 def test_same_day_rerun_does_not_duplicate_report_issues(tmp_path):
     """Fix 4：同一 today 重跑 assemble 两次，report_issues 存档不重复（幂等）。"""
     led = _ledger(tmp_path)

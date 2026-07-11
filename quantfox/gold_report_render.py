@@ -289,12 +289,25 @@ def _summary_html(summary):
     return "金矿摘要：" + " · ".join(parts)
 
 
-def _regime_html(mv):
+def _market_valuation_html(mv):
     mv = mv or {}
     if not mv.get("available"):
         return "大盘估值：暂不可用"
     return (f'大盘估值：全A近10年 {mv.get("percentile_10y", 0) * 100:.0f}% 分位'
             f'（{_html.escape(str(mv.get("level", "")))}）')
+
+
+def _regime_html(meta):
+    """头部 regime 展示双重降级：meta.regime_line（market 层一句话判断）优先；
+    缺失则退回既有 market_valuation 展示（不变）；两者皆无才显示"regime 不可用"
+    （不拿编造/陈旧内容充数，DataHealth-lite 铁律）。"""
+    regime_line = meta.get("regime_line")
+    if regime_line:
+        return f"市场判断：{_html.escape(regime_line)}"
+    mv = meta.get("market_valuation")
+    if mv is not None:
+        return _market_valuation_html(mv)
+    return "regime 不可用"
 
 
 def _events_html(events):
@@ -376,7 +389,7 @@ def build_gold_html(payload: dict) -> str:
         _board_section_html(b, boards.get(b, []), charts.get(b, {})) for b in _BOARD_ORDER
     )
     header = (
-        f'<div class="bar">{_regime_html(meta.get("market_valuation"))}</div>'
+        f'<div class="bar">{_regime_html(meta)}</div>'
         f'<div class="bar">{_html.escape(health.get("line", ""))}</div>'
         f'<div class="bar">{_html.escape(_summary_html(summary))}</div>'
         f'{_events_html(payload.get("events"))}'

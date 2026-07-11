@@ -379,6 +379,12 @@ def gold_report_cmd(
     payload = assemble(universes, prices_fn, metrics_fn, screen_fn, led, today, dates, top=top,
                        holdings_fn=holdings_fn)
     try:
+        from .market import build_market_view, default_fetchers
+
+        payload["meta"]["regime_line"] = build_market_view(default_fetchers())["regime_line"]
+    except Exception:  # noqa - regime 仅头部展示，取数失败降级到 market_valuation 或"不可用"
+        payload["meta"]["regime_line"] = None
+    try:
         payload["meta"]["market_valuation"] = run_market_valuation()
     except Exception:  # noqa - 大盘估值仅头部展示，取数失败不阻断周报
         payload["meta"]["market_valuation"] = {"available": False, "note": "取数失败"}
