@@ -168,3 +168,51 @@ def test_momentum_majority_label_switches_with_trend():
 
     down_view = build_market_view(_fetchers(trend=-0.0025))
     assert "趋势偏弱" in down_view["regime_line"]
+
+
+def test_pe_percentile_uses_trailing_10y_window_not_full_history():
+    # 3000 点：前 500 点极高（1e6），后 2500 点为 1..2500，最后一点=2000。
+    # 近10年窗口（尾部2500点）分位 = 2001/2500；全历史分位 = 2001/3000——两者可测差异明显。
+    n_old, n_win = 500, 2500
+    values = np.concatenate([np.full(n_old, 1e6), np.arange(1, n_win + 1, dtype=float)])
+    values[-1] = 2000.0
+    dates = pd.date_range("2013-01-01", periods=n_old + n_win, freq="B").astype(str)
+    windowed_pe = pd.DataFrame({"date": dates, "value": values})
+
+    fetchers = _fetchers()
+    good_pe = fetchers["index_pe"]
+    fetchers["index_pe"] = lambda code: windowed_pe if code == "000300" else good_pe(code)
+
+    view = build_market_view(fetchers)
+    hs300 = next(e for e in view["indices"] if e["code"] == "000300")
+    assert hs300["pe_percentile_10y"] == 2001 / 2500  # 窗口口径
+    assert hs300["pe_percentile_10y"] != 2001 / 3000  # 不是全历史口径
+
+
+def test_momentum_abstains_when_all_index_hist_fail():
+    fetchers = _fetchers()
+
+    def failing_hist(code):
+        raise RuntimeError("接口不可用")
+
+    fetchers["index_hist"] = failing_hist
+
+    view = build_market_view(fetchers)
+    assert all(e["ma20_gt_ma60"] is None for e in view["indices"])
+    assert "动量不可用" in view["regime_line"]
+    assert "趋势偏弱" not in view["regime_line"]
+
+
+def test_momentum_majority_uses_available_denominator():
+    # 5 指数中 3 只日线失败，剩 2 只全为多头 → 以可用数为分母应判"趋势偏多"
+    #（若仍用固定分母 5，2/5 会被误判为"趋势偏弱"）。
+    fetchers = _fetchers(trend=0.0025)
+    good_hist = fetchers["index_hist"]
+    dead = {"399006", "000688", "000922"}
+    fetchers["index_hist"] = lambda code: (_ for _ in ()).throw(RuntimeError("接口不可用")) \
+        if code in dead else good_hist(code)
+
+    view = build_market_view(fetchers)
+    alive = [e for e in view["indices"] if e["code"] not in dead]
+    assert all(e["ma20_gt_ma60"] is True for e in alive)
+    assert "趋势偏多" in view["regime_line"]

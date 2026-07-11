@@ -18,16 +18,19 @@ INDICES = [
 ]
 
 PE_MIN_POINTS = 1000  # 近10年分位；<1000点视为序列过短，该指数估值弃权
+PE_WINDOW_POINTS = 2500  # 近10年 ≈ 2500 个交易日；超长历史序列须先截窗再算分位
 MOM_SHORT = 20
 MOM_LONG = 60
 
 
 def _pe_percentile(pe_values):
-    """(pe_series <= latest).mean()；序列过短弃权返回 None。"""
+    """近10年分位：先截尾部 PE_WINDOW_POINTS 窗口再 (pe <= latest).mean()；
+    序列 < PE_MIN_POINTS 视为过短，弃权返回 None（唯一的过短守卫，调用方不再重复判）。"""
     if pe_values is None or len(pe_values) < PE_MIN_POINTS:
         return None
-    latest = pe_values.iloc[-1]
-    return float((pe_values <= latest).mean())
+    window = pe_values.tail(PE_WINDOW_POINTS)
+    latest = window.iloc[-1]
+    return float((window <= latest).mean())
 
 
 def _tail_return(values, n):
@@ -62,11 +65,10 @@ def _index_block(code, name, fetchers, health_items):
         pe_df = None
         health_items.append(health_item(name, "failed", note=f"估值弃权：PE不可用（{e}）"))
     if pe_df is not None:
-        if len(pe_df) < PE_MIN_POINTS:
+        entry["pe_percentile_10y"] = _pe_percentile(pe_df["value"])
+        if entry["pe_percentile_10y"] is None:
             health_items.append(health_item(
                 name, "failed", note=f"估值弃权：PE序列仅{len(pe_df)}点（<{PE_MIN_POINTS}）"))
-        else:
-            entry["pe_percentile_10y"] = _pe_percentile(pe_df["value"])
     return entry
 
 
@@ -107,8 +109,12 @@ def _valuation_label(indices):
 
 
 def _momentum_label(indices):
-    up = sum(1 for e in indices if e["ma20_gt_ma60"] is True)
-    return "趋势偏多" if up > len(indices) / 2 else "趋势偏弱"
+    """多数判定只在"动量可用"的指数里做——取数失败(None)是弃权不是看空。"""
+    available = [e for e in indices if e["ma20_gt_ma60"] is not None]
+    if not available:
+        return "动量不可用"
+    up = sum(1 for e in available if e["ma20_gt_ma60"])
+    return "趋势偏多" if up > len(available) / 2 else "趋势偏弱"
 
 
 def build_market_view(fetchers: dict) -> dict:
@@ -159,8 +165,15 @@ def _default_index_hist(code):
         raise RuntimeError("接口不可用") from e
     if df is None or len(df) == 0:
         raise RuntimeError("接口不可用：日线为空")
-    last_date = df["date"].iloc[-1]
-    if hasattr(last_date, "isoformat") and (_dt.date.today() - last_date).days > _STALE_DAYS:
+    raw_last = df["date"].iloc[-1]
+    if hasattr(raw_last, "isoformat") and not hasattr(raw_last, "date"):
+        last_date = raw_last  # datetime.date
+    else:
+        try:  # fail closed：日期解析不了就不假装新鲜
+            last_date = pd.to_datetime(str(raw_last)).date()
+        except Exception as e:
+            raise RuntimeError("接口不可用：无法判定数据新鲜度") from e
+    if (_dt.date.today() - last_date).days > _STALE_DAYS:
         raise RuntimeError(f"接口不可用：数据源已断更（最新 {last_date}）")
     return pd.DataFrame({"date": df["date"].astype(str), "value": df["close"].astype(float)})
 
