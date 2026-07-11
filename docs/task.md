@@ -40,9 +40,15 @@
   全量测试 173 passed / 1 skipped；真实周报冒烟（PDF 860KB）、真实巡检冒烟（8 条新增告警落库）、
   `schedule install`+`status` 均已在本机验证通过。
 
+- [x] **P3a 市场层 + yield-seeker 提准 SOP**（2026-07-11，spec：`docs/superpowers/specs/2026-07-11-quantfox-p3-market-etf-design.md` + `docs/superpowers/specs/2026-07-10-yield-seeker-sop-design.md`；plan：`docs/superpowers/plans/2026-07-11-quantfox-p3a-market-yieldseeker.md`）：
+  C3 名实核对（`theme_guess`+`name_theme_mismatch`，证据卡 schema 升 2.2）；C4 forecast 小样本警示；C5 `quantfox next-confirm` 确认日 helper；
+  `quantfox market` 新增大盘层（10年 PE 分位 + 动量 + 行业轮动 → `regime_line`）；`quantfox gold-report` 头部升级为市场判断 regime 行（同日路径幂等）；
+  事件日历多源 + 当日缓存；分析框架升 v16 + fund-screener 加"诉求校准/风偏探测"第0步。
+  全量测试 206 passed / 1 skipped；真实冒烟：`market`（regime_line 正常输出，health 5 项弃权已如实标注原因——2 指数 legulegu 无 PE 序列、中证红利日线源断更、breadth 不可用）、`market --brief`（干净单行 JSON、stderr 无 tqdm 噪声）、`next-confirm`、`evidence 002611`（schema 2.2）、`gold-report`（regime 头已生效，同日路径幂等）均已在本机验证通过。
+
 ### 后续（未开始）
-- [ ] **P3**：正式对外发布；A 股市场层 + ETF 覆盖；llm 深分析（当前 `--llm` 为存根）；事件日历多源（当前仅尽力而为单源）。
-- [ ] **yield-seeker SOP 落地**（2026-07-10 晚会话沉淀）：fund-screener 加"诉求校准/风偏探测"前置章节 + 引擎 C1(metrics-batch)/C2(假稳flags)/C3(名实核对)/C4(forecast小样本警示)/C5(确认日helper)——设计见 `docs/superpowers/specs/2026-07-10-yield-seeker-sop-design.md`。
+- [ ] **P3b**（下一步）：ETF 全链路覆盖（当前仅场外基金+黄金）；`quantfox patrol --llm` 深分析（当前仍为存根）；正式对外发布收尾。
+- [x] **yield-seeker SOP 落地**（2026-07-10 晚会话设计 → 2026-07-11 P3a 实现完成，见上方 P3a 条目）：fund-screener 加"诉求校准/风偏探测"前置章节 + 引擎 C1(metrics-batch)/C2(假稳flags)/C3(名实核对)/C4(forecast小样本警示)/C5(确认日helper)。
 - [ ] review 口径细分（买入胜率 vs 回避胜率 vs 策略净值胜率）——回测已按此口径，live review 可跟进。
 - [x] price_ref_date 对齐场外基金 T+1 —— P1 已建 calendar_cn + watch buy 自动确认日（2026-07-10）。
 - [x] **P2**：headless `--llm`（无人值守分析）—— `quantfox patrol --llm` 已实现（存根版，深分析留 P3）。
