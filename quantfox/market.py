@@ -42,6 +42,7 @@ def _tail_return(values, n):
 def _index_block(code, name, fetchers, health_items):
     entry = {"code": code, "name": name, "pe_percentile_10y": None,
              "r_20": None, "r_60": None, "ma20_gt_ma60": None}
+    hist_ok = pe_ok = False
 
     try:
         hist = fetchers["index_hist"](code)
@@ -49,6 +50,7 @@ def _index_block(code, name, fetchers, health_items):
         hist = None
         health_items.append(health_item(name, "failed", note=f"日线不可用：{e}"))
     if hist is not None and len(hist) > 0:
+        hist_ok = True
         values = hist["value"]
         entry["r_20"] = _tail_return(values, MOM_SHORT)
         entry["r_60"] = _tail_return(values, MOM_LONG)
@@ -69,6 +71,11 @@ def _index_block(code, name, fetchers, health_items):
         if entry["pe_percentile_10y"] is None:
             health_items.append(health_item(
                 name, "failed", note=f"估值弃权：PE序列仅{len(pe_df)}点（<{PE_MIN_POINTS}）"))
+        else:
+            pe_ok = True
+
+    if hist_ok and pe_ok:  # 双块全成功才记 ok；部分失败只留失败明细，不假绿
+        health_items.append(health_item(name, "ok", as_of=str(hist["date"].iloc[-1])[:10]))
     return entry
 
 
@@ -79,6 +86,8 @@ def _breadth_block(fetchers, health_items):
         breadth = None
     if breadth is None:
         health_items.append(health_item("breadth", "failed", note="宽度不可用"))
+    else:
+        health_items.append(health_item("breadth", "ok"))
     return breadth
 
 
@@ -90,6 +99,7 @@ def _sector_block(fetchers, health_items):
     if not sectors:
         health_items.append(health_item("sectors", "failed", note="行业轮动不可用"))
         return {"top": [], "bottom": []}
+    health_items.append(health_item("sectors", "ok"))
     ranked_desc = sorted(sectors, key=lambda s: s.get("r_1m") if s.get("r_1m") is not None else float("-inf"),
                           reverse=True)
     ranked_asc = sorted(sectors, key=lambda s: s.get("r_1m") if s.get("r_1m") is not None else float("inf"))

@@ -59,6 +59,11 @@ def test_full_success_has_regime_line_and_three_data_blocks():
     assert [s["name"] for s in view["sectors"]["bottom"]] == ["地产", "电机", "电池", "包装印刷", "保险"]
 
     assert view["health"]["healthy"] is True
+    # 成功也要记账：5 指数（hist+PE 双成功）+ breadth + sectors = 7 条 ok
+    assert view["health"]["ok"] == 7
+    assert view["health"]["failed"] == 0
+    # detail 只放 stale+failed，ok 项不进 detail
+    assert view["health"]["detail"] == []
     assert "估值" in view["regime_line"]
     assert "半导体/白酒" in view["regime_line"]
 
