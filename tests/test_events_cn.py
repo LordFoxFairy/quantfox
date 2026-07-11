@@ -88,11 +88,41 @@ def test_stale_cache_refetches_and_overwrites(tmp_path):
     assert cached == {"date": "2026-07-11", "events": fresh_events}
 
 
-def test_default_sources_are_baidu_then_secondary():
-    from quantfox.data.events_cn import _source_baidu, _source_secondary
+def test_corrupted_cache_treated_as_miss(tmp_path):
+    cache_path = tmp_path / "events_cache.json"
+    cache_path.write_text("{not json", encoding="utf-8")
+    first = _counting(lambda: list(FAKE_EVENTS))
 
-    result = next_week_events.__defaults__  # sources, cache_path, today all default None
-    assert result == (None, None, None)
-    # 默认 sources 列表由函数体内部构造，逐一确认两个源函数存在且可调用
-    assert callable(_source_baidu)
-    assert callable(_source_secondary)
+    result = next_week_events(
+        sources=[first], cache_path=cache_path, today="2026-07-11"
+    )
+
+    assert result == FAKE_EVENTS
+    assert first.calls == [1]  # 损坏缓存当作未命中，源被调用
+    cached = json.loads(cache_path.read_text(encoding="utf-8"))  # 缓存已重写为合法 JSON
+    assert cached == {"date": "2026-07-11", "events": FAKE_EVENTS}
+
+
+def test_default_sources_are_baidu_then_secondary(tmp_path):
+    """sources=None 时默认顺序为 [_source_baidu, _source_secondary]，依序尝试。"""
+    from unittest.mock import patch
+
+    call_order = []
+
+    def fake_baidu():
+        call_order.append("baidu")
+        raise RuntimeError("baidu down")
+
+    secondary_events = [{"date": "2026-07-12", "event": "x"}]
+
+    def fake_secondary():
+        call_order.append("secondary")
+        return list(secondary_events)
+
+    cache_path = tmp_path / "events_cache.json"
+    with patch("quantfox.data.events_cn._source_baidu", fake_baidu), \
+         patch("quantfox.data.events_cn._source_secondary", fake_secondary):
+        result = next_week_events(cache_path=cache_path, today="2026-07-11")
+
+    assert call_order == ["baidu", "secondary"]
+    assert result == secondary_events
